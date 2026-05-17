@@ -49,38 +49,47 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Identidade visual Camila Garcia — tons terrosos/nude */
+  --brand-bg: #F5EFE6;
+  --brand-card: #FAF7F2;
+  --brand-dark: #2C1A0E;
+  --brand-medium: #7B4F2E;
+  --brand-text: #3D2310;
+  --brand-muted: #A67B5B;
+  --brand-border: #DDD0BE;
+
+  --background: #F5EFE6;
+  --foreground: #2C1A0E;
+  --card: #FAF7F2;
+  --card-foreground: #2C1A0E;
+  --popover: #FAF7F2;
+  --popover-foreground: #2C1A0E;
+  --primary: #7B4F2E;
+  --primary-foreground: #FAF7F2;
+  --secondary: #EDE4D8;
+  --secondary-foreground: #2C1A0E;
+  --muted: #EDE4D8;
+  --muted-foreground: #A67B5B;
+  --accent: #EDE4D8;
+  --accent-foreground: #2C1A0E;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: #DDD0BE;
+  --input: #DDD0BE;
+  --ring: #C8A882;
+  --chart-1: #7B4F2E;
+  --chart-2: #A67B5B;
+  --chart-3: #C8A882;
+  --chart-4: #5C3D20;
+  --chart-5: #2C1A0E;
+  --radius: 0.5rem;
+  --sidebar: #2C1A0E;
+  --sidebar-foreground: #FAF7F2;
+  --sidebar-primary: #7B4F2E;
+  --sidebar-primary-foreground: #FAF7F2;
+  --sidebar-accent: #3D2310;
+  --sidebar-accent-foreground: #FAF7F2;
+  --sidebar-border: #3D2310;
+  --sidebar-ring: #C8A882;
 }
 
 .dark {

@@ -188,7 +188,7 @@ export default function AgendamentosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Agendamentos</h1>
           <p className="text-gray-500">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => abrirNovo()} className="bg-rose-600 hover:bg-rose-700">
+        <Button onClick={() => abrirNovo()} className="bg-[#7B4F2E] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
         </Button>
       </div>
@@ -206,7 +206,7 @@ export default function AgendamentosPage() {
                 key={s}
                 size="sm"
                 variant={filtroStatus === s ? 'default' : 'outline'}
-                className={filtroStatus === s ? 'bg-rose-600 hover:bg-rose-700' : ''}
+                className={filtroStatus === s ? 'bg-[#7B4F2E] hover:bg-[#5C3D20]' : ''}
                 onClick={() => setFiltroStatus(s)}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -246,7 +246,7 @@ export default function AgendamentosPage() {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-semibold text-rose-600">{formatCurrency(ag.valor_cobrado)}</p>
+                      <p className="font-semibold text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
                           <Button size="sm" variant="outline" className="text-green-600 h-7 px-2" onClick={() => marcarRealizado(ag)} title="Marcar como realizado">
@@ -301,13 +301,13 @@ export default function AgendamentosPage() {
                     key={dia.toISOString()}
                     onClick={() => setDiaSelecionado(selecionado ? null : dia)}
                     className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-[60px] flex flex-col items-center gap-1
-                      ${hoje ? 'ring-2 ring-rose-400' : ''}
-                      ${selecionado ? 'bg-rose-600 text-white' : 'hover:bg-gray-100'}
+                      ${hoje ? 'ring-2 ring-[#C8A882]' : ''}
+                      ${selecionado ? 'bg-[#7B4F2E] text-white' : 'hover:bg-gray-100'}
                     `}
                   >
                     <span className="font-medium">{format(dia, 'd')}</span>
                     {agsNoDia.length > 0 && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-600'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-white text-[#7B4F2E]' : 'bg-[#EDE4D8] text-[#7B4F2E]'}`}>
                         {agsNoDia.length}
                       </span>
                     )}
@@ -321,7 +321,7 @@ export default function AgendamentosPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>{format(diaSelecionado, "dd 'de' MMMM", { locale: ptBR })}</span>
-                    <Button size="sm" className="bg-rose-600 hover:bg-rose-700" onClick={() => abrirNovo(diaSelecionado)}>
+                    <Button size="sm" className="bg-[#7B4F2E] hover:bg-[#5C3D20]" onClick={() => abrirNovo(diaSelecionado)}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> Agendar
                     </Button>
                   </CardTitle>
@@ -338,7 +338,7 @@ export default function AgendamentosPage() {
                             <p className="text-xs text-gray-500">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-rose-600">{formatCurrency(ag.valor_cobrado)}</p>
+                            <p className="text-sm font-medium text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
                             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[ag.status]}`}>{ag.status}</span>
                           </div>
                         </div>
@@ -404,7 +404,7 @@ export default function AgendamentosPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-rose-600 hover:bg-rose-700" disabled={salvando || !form.cliente_id || !form.servico_id}>
+              <Button type="submit" className="flex-1 bg-[#7B4F2E] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Agendar'}
               </Button>
             </div>

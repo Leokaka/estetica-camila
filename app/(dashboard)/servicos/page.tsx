@@ -121,7 +121,7 @@ export default function ServicosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Serviços</h1>
           <p className="text-gray-500">{servicos.filter(s => s.ativo).length} serviços ativos</p>
         </div>
-        <Button onClick={abrirNovo} className="bg-rose-600 hover:bg-rose-700">
+        <Button onClick={abrirNovo} className="bg-[#7B4F2E] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Serviço
         </Button>
       </div>
@@ -131,7 +131,7 @@ export default function ServicosPage() {
         <Button
           size="sm"
           variant={filtroCategoria === 'todas' ? 'default' : 'outline'}
-          className={filtroCategoria === 'todas' ? 'bg-rose-600 hover:bg-rose-700' : ''}
+          className={filtroCategoria === 'todas' ? 'bg-[#7B4F2E] hover:bg-[#5C3D20]' : ''}
           onClick={() => setFiltroCategoria('todas')}
         >
           Todas
@@ -141,7 +141,7 @@ export default function ServicosPage() {
             key={cat}
             size="sm"
             variant={filtroCategoria === cat ? 'default' : 'outline'}
-            className={filtroCategoria === cat ? 'bg-rose-600 hover:bg-rose-700' : ''}
+            className={filtroCategoria === cat ? 'bg-[#7B4F2E] hover:bg-[#5C3D20]' : ''}
             onClick={() => setFiltroCategoria(cat)}
           >
             {cat}
@@ -295,7 +295,7 @@ export default function ServicosPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-rose-600 hover:bg-rose-700" disabled={salvando}>
+              <Button type="submit" className="flex-1 bg-[#7B4F2E] hover:bg-[#5C3D20]" disabled={salvando}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Cadastrar'}
               </Button>
             </div>

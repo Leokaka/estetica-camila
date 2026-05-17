@@ -28,7 +28,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(`Erro: ${error.message} (${error.status ?? ''})`)
+      setError('Email ou senha incorretos. Tente novamente.')
       setLoading(false)
     } else {
       router.push('/dashboard')
@@ -37,17 +37,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-rose-50 to-pink-100 p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#F5EFE6' }}>
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 mb-4 shadow-lg">
-            <Sparkles className="h-8 w-8 text-white" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full mb-4 shadow-lg" style={{ background: '#7B4F2E' }}>
+            <Sparkles className="h-8 w-8" style={{ color: '#FAF7F2' }} />
           </div>
-          <h1 className="text-3xl font-bold text-rose-700">Estética Camila</h1>
-          <p className="text-gray-500 mt-1">Sistema de Gestão</p>
+          <h1 className="text-3xl font-bold" style={{ color: '#7B4F2E' }}>Estética Camila</h1>
+          <p className="mt-1" style={{ color: '#A67B5B' }}>Sistema de Gestão</p>
         </div>
 
-        <Card className="shadow-xl border-0">
+        <Card className="shadow-xl" style={{ background: '#FAF7F2', border: '1px solid #DDD0BE' }}>
           <CardHeader>
             <CardTitle className="text-xl">Entrar</CardTitle>
             <CardDescription>Acesse sua conta para continuar</CardDescription>
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full bg-rose-600 hover:bg-rose-700" disabled={loading}>
+              <Button type="submit" className="w-full" style={{ background: '#7B4F2E', color: '#FAF7F2' }} disabled={loading}>
                 {loading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>
