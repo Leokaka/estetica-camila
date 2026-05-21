@@ -26,7 +26,12 @@ const STATUS_COLORS: Record<string, string> = {
 
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data_hora: '', status: 'agendado',
-  valor_cobrado: '', observacoes: ''
+  local: 'quartinho', valor_cobrado: '', observacoes: ''
+}
+
+const LOCAL_LABELS: Record<string, { label: string; cor: string; split: number }> = {
+  quartinho: { label: 'Quartinho', cor: 'bg-amber-100 text-amber-700', split: 1.0 },
+  karine:    { label: 'Karine (60%)', cor: 'bg-purple-100 text-purple-700', split: 0.6 },
 }
 
 function formatCurrency(v: number) {
@@ -85,6 +90,7 @@ export default function AgendamentosPage() {
       servico_id: ag.servico_id,
       data_hora: format(new Date(ag.data_hora), "yyyy-MM-dd'T'HH:mm"),
       status: ag.status,
+      local: ag.local ?? 'quartinho',
       valor_cobrado: String(ag.valor_cobrado),
       observacoes: ag.observacoes ?? '',
     })
@@ -105,6 +111,7 @@ export default function AgendamentosPage() {
       servico_id: form.servico_id,
       data_hora: new Date(form.data_hora).toISOString(),
       status: form.status as Agendamento['status'],
+      local: form.local as Agendamento['local'],
       valor_cobrado: Number(form.valor_cobrado),
       observacoes: form.observacoes || null,
     }
@@ -138,11 +145,14 @@ export default function AgendamentosPage() {
   async function registrarEntradaFinanceira(agendamentoId: string, payload: any) {
     const cliente = clientes.find(c => c.id === payload.cliente_id)
     const servico = servicos.find(s => s.id === payload.servico_id)
-    const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}`
+    const split = payload.local === 'karine' ? 0.6 : 1.0
+    const valorRecebido = Number(payload.valor_cobrado) * split
+    const localLabel = payload.local === 'karine' ? ' (Karine 60%)' : ' (Quartinho)'
+    const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}${localLabel}`
     await supabase.from('lancamentos').insert({
       tipo: 'entrada',
       descricao: desc,
-      valor: payload.valor_cobrado,
+      valor: valorRecebido,
       categoria: 'Serviço',
       data: format(new Date(payload.data_hora), 'yyyy-MM-dd'),
       agendamento_id: agendamentoId,
@@ -238,6 +248,9 @@ export default function AgendamentosPage() {
                         <p className="font-medium">{ag.cliente?.nome}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[ag.status]}`}>
                           {ag.status}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LOCAL_LABELS[ag.local ?? 'quartinho']?.cor}`}>
+                          {LOCAL_LABELS[ag.local ?? 'quartinho']?.label}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500">{ag.servico?.nome}</p>
@@ -375,6 +388,27 @@ export default function AgendamentosPage() {
                   {servicos.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Local *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(['quartinho', 'karine'] as const).map(loc => (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, local: loc }))}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                      form.local === loc
+                        ? loc === 'quartinho'
+                          ? 'border-amber-500 bg-amber-50 text-amber-700'
+                          : 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                    }`}
+                  >
+                    {loc === 'quartinho' ? '🏠 Quartinho' : '💜 Karine (60%)'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Data e Hora *</Label>

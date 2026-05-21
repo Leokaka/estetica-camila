@@ -28,12 +28,14 @@ CREATE TABLE IF NOT EXISTS servicos (
 );
 
 -- Tabela de agendamentos
+-- local: 'quartinho' = 100% da Camila | 'karine' = 60% da Camila
 CREATE TABLE IF NOT EXISTS agendamentos (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   cliente_id UUID NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
   servico_id UUID NOT NULL REFERENCES servicos(id) ON DELETE RESTRICT,
   data_hora TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'agendado' CHECK (status IN ('agendado','confirmado','realizado','cancelado')),
+  local TEXT NOT NULL DEFAULT 'quartinho' CHECK (local IN ('quartinho','karine')),
   valor_cobrado DECIMAL(10,2) NOT NULL DEFAULT 0,
   observacoes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -55,10 +57,11 @@ CREATE TABLE IF NOT EXISTS lancamentos (
 CREATE INDEX IF NOT EXISTS idx_agendamentos_data ON agendamentos(data_hora);
 CREATE INDEX IF NOT EXISTS idx_agendamentos_cliente ON agendamentos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_agendamentos_status ON agendamentos(status);
+CREATE INDEX IF NOT EXISTS idx_agendamentos_local ON agendamentos(local);
 CREATE INDEX IF NOT EXISTS idx_lancamentos_data ON lancamentos(data);
 CREATE INDEX IF NOT EXISTS idx_lancamentos_tipo ON lancamentos(tipo);
 
--- RLS (Row Level Security) - simplificado para usuário autenticado ver tudo
+-- RLS (Row Level Security)
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE servicos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agendamentos ENABLE ROW LEVEL SECURITY;
@@ -69,12 +72,42 @@ CREATE POLICY "Acesso autenticado - servicos" ON servicos FOR ALL TO authenticat
 CREATE POLICY "Acesso autenticado - agendamentos" ON agendamentos FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso autenticado - lancamentos" ON lancamentos FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Dados iniciais de serviços para começar
+-- =============================================
+-- SERVIÇOS DA CAMILA GARCIA
+-- Preços e durações reais conforme entrevista
+-- =============================================
 INSERT INTO servicos (nome, descricao, preco, custo, duracao_minutos, categoria) VALUES
-('Limpeza de Pele', 'Limpeza facial profunda', 120.00, 30.00, 90, 'Facial'),
-('Design de Sobrancelha', 'Modelagem e design de sobrancelha', 45.00, 8.00, 30, 'Sobrancelha'),
-('Hidratação Facial', 'Hidratação profunda com máscara', 80.00, 20.00, 60, 'Facial'),
-('Depilação Buço', 'Depilação da região do buço', 25.00, 5.00, 15, 'Depilação'),
-('Depilação Axila', 'Depilação das axilas', 30.00, 5.00, 20, 'Depilação'),
-('Micropigmentação Sobrancelha', 'Micropigmentação de sobrancelha', 400.00, 80.00, 120, 'Micropigmentação')
+-- Facial (Quartinho)
+('Limpeza de Pele', 'Limpeza facial profunda e personalizada', 120.00, 25.00, 75, 'Facial'),
+('Microagulhamento', 'Trata estria, manchas de acne, colágeno, textura da pele', 95.00, 23.00, 40, 'Facial'),
+('Combo Limpeza + Microagulhamento', 'Limpeza de pele + microagulhamento no mesmo dia', 190.00, 45.00, 120, 'Facial'),
+
+-- Plasma (Quartinho)
+('Jato de Plasma', 'Remoção de verrugas, manchas, melanose solar, lifting facial, olheiras', 150.00, 20.00, 50, 'Plasma'),
+
+-- Cílios (Quartinho e Karine)
+('Cílios Fio a Fio — Colocação', 'Aplicação completa de cílios fio a fio', 130.00, 30.00, 120, 'Cílios'),
+('Cílios Fio a Fio — Manutenção', 'Manutenção dos cílios', 90.00, 15.00, 60, 'Cílios'),
+
+-- Sobrancelha (Karine principalmente)
+('Design de Sobrancelha', 'Modelagem e design de sobrancelha', 30.00, 5.00, 30, 'Sobrancelha'),
+('Design de Sobrancelha com Henna', 'Design + coloração com henna', 50.00, 10.00, 40, 'Sobrancelha'),
+('Micropigmentação de Sobrancelha', 'Micropigmentação semi-permanente', 400.00, 80.00, 120, 'Micropigmentação'),
+
+-- Corporal (Quartinho)
+('Massagem Modeladora', 'Massagem modeladora com placas de contração abdominal', 90.00, 15.00, 60, 'Corporal'),
+('Drenagem Linfática', 'Drenagem linfática manual', 80.00, 12.00, 60, 'Corporal'),
+('Massagem Relaxante', 'Massagem relaxante completa', 90.00, 15.00, 60, 'Corporal'),
+
+-- Pacotes (5 sessões)
+('Pacote Massagem Modeladora 5x', '5 sessões de massagem modeladora', 375.00, 65.00, 60, 'Corporal'),
+('Pacote Drenagem Linfática 5x', '5 sessões de drenagem linfática', 350.00, 55.00, 60, 'Corporal'),
+('Pacote Massagem Relaxante 5x', '5 sessões de massagem relaxante', 375.00, 65.00, 60, 'Corporal')
 ON CONFLICT DO NOTHING;
+
+-- =============================================
+-- MIGRAÇÃO: adicionar coluna 'local' se já existir a tabela
+-- Execute apenas se a tabela já existia antes
+-- =============================================
+-- ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS local TEXT NOT NULL DEFAULT 'quartinho' CHECK (local IN ('quartinho','karine'));
+-- CREATE INDEX IF NOT EXISTS idx_agendamentos_local ON agendamentos(local);

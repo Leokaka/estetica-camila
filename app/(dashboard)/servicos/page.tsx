@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { Plus, Edit, Trash2, TrendingUp, Clock, DollarSign, Calculator } from 'lucide-react'
 import type { Servico } from '@/types'
 
-const CATEGORIAS = ['Facial', 'Sobrancelha', 'Depilação', 'Micropigmentação', 'Corporal', 'Mãos e Pés', 'Geral']
+const CATEGORIAS = ['Facial', 'Plasma', 'Cílios', 'Sobrancelha', 'Micropigmentação', 'Corporal', 'Geral']
 
 const EMPTY_FORM = {
   nome: '', descricao: '', preco: '', custo: '',

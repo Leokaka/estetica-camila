@@ -26,6 +26,7 @@ export interface Agendamento {
   servico_id: string
   data_hora: string
   status: 'agendado' | 'confirmado' | 'realizado' | 'cancelado'
+  local: 'quartinho' | 'karine'
   valor_cobrado: number
   observacoes?: string
   created_at: string
