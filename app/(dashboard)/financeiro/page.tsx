@@ -168,9 +168,9 @@ export default function FinanceiroPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lista de lançamentos */}
-        <div className="xl:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4">
           <div className="flex gap-2">
             {['todos', 'entrada', 'saida'].map(tipo => (
               <Button
@@ -269,7 +269,7 @@ export default function FinanceiroPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo Lançamento</DialogTitle>
           </DialogHeader>

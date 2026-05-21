@@ -194,7 +194,7 @@ export default function ClientesPage() {
 
       {/* Dialog de cadastro/edição */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editando ? 'Editar Cliente' : 'Nova Cliente'}</DialogTitle>
           </DialogHeader>

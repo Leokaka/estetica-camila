@@ -244,26 +244,23 @@ export default function AgendamentosPage() {
                 <Card key={ag.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="flex items-center gap-4 p-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium">{ag.cliente?.nome}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[ag.status]}`}>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-medium text-sm">{ag.cliente?.nome}</p>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[ag.status]}`}>
                           {ag.status}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LOCAL_LABELS[ag.local ?? 'quartinho']?.cor}`}>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${LOCAL_LABELS[ag.local ?? 'quartinho']?.cor}`}>
                           {LOCAL_LABELS[ag.local ?? 'quartinho']?.label}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500">{ag.servico?.nome}</p>
+                      <p className="text-sm text-gray-500 truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-gray-400">
-                        {format(new Date(ag.data_hora), "dd/MM/yyyy 'às' HH:mm")}
+                        {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                       </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-semibold text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
-                          <Button size="sm" variant="outline" className="text-green-600 h-7 px-2" onClick={() => marcarRealizado(ag)} title="Marcar como realizado">
-                            <CheckCircle className="h-3.5 w-3.5" />
+                          <Button size="sm" variant="outline" className="text-green-600 h-7 px-2 text-xs" onClick={() => marcarRealizado(ag)}>
+                            <CheckCircle className="h-3.5 w-3.5 mr-1" /> Realizado
                           </Button>
                         )}
                         {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
@@ -278,6 +275,9 @@ export default function AgendamentosPage() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -366,7 +366,7 @@ export default function AgendamentosPage() {
       </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editando ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
           </DialogHeader>

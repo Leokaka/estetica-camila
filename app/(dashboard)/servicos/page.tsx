@@ -232,7 +232,7 @@ export default function ServicosPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editando ? 'Editar Serviço' : 'Novo Serviço'}</DialogTitle>
           </DialogHeader>

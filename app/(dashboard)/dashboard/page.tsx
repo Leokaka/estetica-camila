@@ -203,8 +203,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Gráfico e próximos agendamentos */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <Card className="xl:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Faturamento dos Últimos 6 Meses</CardTitle>
           </CardHeader>
@@ -254,7 +254,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Alertas */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
