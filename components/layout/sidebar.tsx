@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, Calendar, Scissors,
-  DollarSign, LogOut, Sparkles, Menu, X,
+  DollarSign, LogOut, Menu, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
@@ -31,16 +32,19 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-[#3D2310]">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#7B4F2E]">
-          <Sparkles className="h-5 w-5 text-[#FAF7F2]" />
-        </div>
+      <div className="flex items-center gap-3 px-6 py-6 border-b border-[#463325]">
+        <Image src="/logo/selo-cg.png" alt="CG" width={44} height={44} />
         <div>
-          <p className="font-bold text-lg leading-tight text-[#FAF7F2]">Estética</p>
-          <p className="font-bold text-lg leading-tight text-[#C8A882]">Camila</p>
+          <p
+            className="text-base leading-tight text-[#F5F0EA] tracking-[0.06em]"
+            style={{ fontFamily: 'var(--font-playfair), serif', fontWeight: 600 }}
+          >
+            Camila Garcia
+          </p>
+          <p className="text-[10px] leading-tight tracking-[0.35em] text-[#C9A96E] font-medium">ESTÉTICA</p>
         </div>
         {onClose && (
-          <button onClick={onClose} className="ml-auto text-[#C8A882] hover:text-white">
+          <button onClick={onClose} className="ml-auto text-[#C9A96E] hover:text-white">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -58,8 +62,8 @@ function NavContent({ onClose }: { onClose?: () => void }) {
               className={cn(
                 'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all',
                 active
-                  ? 'bg-[#FAF7F2] text-[#7B4F2E]'
-                  : 'text-[#C8A882] hover:bg-[#3D2310] hover:text-[#FAF7F2]'
+                  ? 'bg-[#F5F0EA] text-[#5E4433]'
+                  : 'text-[#C9A96E] hover:bg-[#463325] hover:text-[#F5F0EA]'
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
@@ -72,7 +76,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
       <div className="px-3 pb-6">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-[#C8A882] hover:bg-[#3D2310] hover:text-[#FAF7F2] transition-all"
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-[#C9A96E] hover:bg-[#463325] hover:text-[#F5F0EA] transition-all"
         >
           <LogOut className="h-5 w-5" />
           Sair
@@ -84,7 +88,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden md:flex h-screen w-64 shrink-0 flex-col bg-[#2C1A0E] shadow-xl">
+    <aside className="hidden md:flex h-screen w-64 shrink-0 flex-col bg-[#33241A] shadow-xl">
       <NavContent />
     </aside>
   )
@@ -95,14 +99,17 @@ export function MobileHeader() {
 
   return (
     <>
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#2C1A0E] shadow-md sticky top-0 z-40">
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#33241A] shadow-md sticky top-0 z-40">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7B4F2E]">
-            <Sparkles className="h-4 w-4 text-[#FAF7F2]" />
-          </div>
-          <span className="font-bold text-[#FAF7F2]">Estética Camila</span>
+          <Image src="/logo/selo-cg.png" alt="CG" width={32} height={32} />
+          <span
+            className="text-[#F5F0EA] tracking-wider"
+            style={{ fontFamily: 'var(--font-playfair), serif', fontWeight: 600 }}
+          >
+            Camila Garcia
+          </span>
         </div>
-        <button onClick={() => setOpen(true)} className="text-[#C8A882] hover:text-white p-1">
+        <button onClick={() => setOpen(true)} className="text-[#C9A96E] hover:text-white p-1">
           <Menu className="h-6 w-6" />
         </button>
       </header>
@@ -117,7 +124,7 @@ export function MobileHeader() {
 
       {/* Drawer */}
       <div className={cn(
-        'fixed top-0 left-0 h-full w-72 bg-[#2C1A0E] z-50 flex flex-col shadow-2xl transition-transform duration-300 md:hidden',
+        'fixed top-0 left-0 h-full w-72 bg-[#33241A] z-50 flex flex-col shadow-2xl transition-transform duration-300 md:hidden',
         open ? 'translate-x-0' : '-translate-x-full'
       )}>
         <NavContent onClose={() => setOpen(false)} />

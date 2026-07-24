@@ -8,8 +8,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-mono: ui-monospace, monospace;
+  --font-heading: var(--font-playfair);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,47 +49,49 @@
 }
 
 :root {
-  /* Identidade visual Camila Garcia — tons terrosos/nude */
-  --brand-bg: #F5EFE6;
-  --brand-card: #FAF7F2;
-  --brand-dark: #2C1A0E;
-  --brand-medium: #7B4F2E;
-  --brand-text: #3D2310;
-  --brand-muted: #A67B5B;
-  --brand-border: #DDD0BE;
+  /* Identidade visual oficial Camila Garcia Estética (manual jul/2026) */
+  --brand-bg: #F5F0EA;       /* creme */
+  --brand-card: #FBF9F5;
+  --brand-dark: #2E2015;     /* ink */
+  --brand-medium: #7A5C4A;   /* cacau */
+  --brand-gold: #C9A96E;     /* dourado */
+  --brand-terra: #C4856A;    /* terracota — destaque pontual */
+  --brand-text: #2E2015;
+  --brand-muted: #8A7160;
+  --brand-border: #E8DFD2;
 
-  --background: #F5EFE6;
-  --foreground: #2C1A0E;
-  --card: #FAF7F2;
-  --card-foreground: #2C1A0E;
-  --popover: #FAF7F2;
-  --popover-foreground: #2C1A0E;
-  --primary: #7B4F2E;
-  --primary-foreground: #FAF7F2;
-  --secondary: #EDE4D8;
-  --secondary-foreground: #2C1A0E;
-  --muted: #EDE4D8;
-  --muted-foreground: #A67B5B;
-  --accent: #EDE4D8;
-  --accent-foreground: #2C1A0E;
+  --background: #F5F0EA;
+  --foreground: #2E2015;
+  --card: #FBF9F5;
+  --card-foreground: #2E2015;
+  --popover: #FBF9F5;
+  --popover-foreground: #2E2015;
+  --primary: #7A5C4A;
+  --primary-foreground: #F5F0EA;
+  --secondary: #EEE0D4;
+  --secondary-foreground: #2E2015;
+  --muted: #EEE5D9;
+  --muted-foreground: #8A7160;
+  --accent: #EEE0D4;
+  --accent-foreground: #2E2015;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #DDD0BE;
-  --input: #DDD0BE;
-  --ring: #C8A882;
-  --chart-1: #7B4F2E;
-  --chart-2: #A67B5B;
-  --chart-3: #C8A882;
-  --chart-4: #5C3D20;
-  --chart-5: #2C1A0E;
+  --border: #E8DFD2;
+  --input: #E8DFD2;
+  --ring: #C9A96E;
+  --chart-1: #7A5C4A;
+  --chart-2: #C9A96E;
+  --chart-3: #C4856A;
+  --chart-4: #A68B6F;
+  --chart-5: #2E2015;
   --radius: 0.5rem;
-  --sidebar: #2C1A0E;
-  --sidebar-foreground: #FAF7F2;
-  --sidebar-primary: #7B4F2E;
-  --sidebar-primary-foreground: #FAF7F2;
-  --sidebar-accent: #3D2310;
-  --sidebar-accent-foreground: #FAF7F2;
-  --sidebar-border: #3D2310;
-  --sidebar-ring: #C8A882;
+  --sidebar: #33241A;
+  --sidebar-foreground: #F5F0EA;
+  --sidebar-primary: #C9A96E;
+  --sidebar-primary-foreground: #2E2015;
+  --sidebar-accent: #463325;
+  --sidebar-accent-foreground: #F5F0EA;
+  --sidebar-border: #463325;
+  --sidebar-ring: #C9A96E;
 }
 
 .dark {

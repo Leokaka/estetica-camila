@@ -100,7 +100,7 @@ export default function FinanceiroPage() {
           <h1 className="text-2xl font-bold text-gray-900">Financeiro</h1>
           <p className="text-gray-500">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setDialogOpen(true) }} className="bg-[#7B4F2E] hover:bg-[#5C3D20]">
+        <Button onClick={() => { setForm(EMPTY_FORM); setDialogOpen(true) }} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Lançamento
         </Button>
       </div>
@@ -110,7 +110,7 @@ export default function FinanceiroPage() {
         <Button variant="outline" size="sm" onClick={() => setMesAtual(m => subMonths(m, 1))}>← Anterior</Button>
         <span className="text-sm font-medium px-2">{format(mesAtual, "MMMM yyyy", { locale: ptBR })}</span>
         <Button variant="outline" size="sm" onClick={() => setMesAtual(m => new Date(m.getFullYear(), m.getMonth() + 1))}>Próximo →</Button>
-        <Button variant="ghost" size="sm" onClick={() => setMesAtual(new Date())} className="text-[#7B4F2E]">Hoje</Button>
+        <Button variant="ghost" size="sm" onClick={() => setMesAtual(new Date())} className="text-[#7A5C4A]">Hoje</Button>
       </div>
 
       {/* Resumo do mês */}
@@ -177,7 +177,7 @@ export default function FinanceiroPage() {
                 key={tipo}
                 size="sm"
                 variant={filtroTipo === tipo ? 'default' : 'outline'}
-                className={filtroTipo === tipo ? 'bg-[#7B4F2E] hover:bg-[#5C3D20]' : ''}
+                className={filtroTipo === tipo ? 'bg-[#7A5C4A] hover:bg-[#5C3D20]' : ''}
                 onClick={() => setFiltroTipo(tipo)}
               >
                 {tipo === 'todos' ? 'Todos' : tipo === 'entrada' ? 'Entradas' : 'Saídas'}
@@ -320,7 +320,7 @@ export default function FinanceiroPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-[#7B4F2E] hover:bg-[#5C3D20]" disabled={salvando || !form.categoria}>
+              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando || !form.categoria}>
                 {salvando ? 'Salvando...' : 'Registrar'}
               </Button>
             </div>

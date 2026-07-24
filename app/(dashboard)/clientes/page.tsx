@@ -114,7 +114,7 @@ export default function ClientesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
           <p className="text-gray-500">{clientes.length} clientes cadastradas</p>
         </div>
-        <Button onClick={abrirNovo} className="bg-[#7B4F2E] hover:bg-[#5C3D20]">
+        <Button onClick={abrirNovo} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Nova Cliente
         </Button>
       </div>
@@ -146,8 +146,8 @@ export default function ClientesPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EDE4D8]">
-                        <User className="h-5 w-5 text-[#7B4F2E]" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EEE0D4]">
+                        <User className="h-5 w-5 text-[#7A5C4A]" />
                       </div>
                       <div>
                         <CardTitle className="text-base">{c.nome}</CardTitle>
@@ -221,7 +221,7 @@ export default function ClientesPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-[#7B4F2E] hover:bg-[#5C3D20]" disabled={salvando}>
+              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Cadastrar'}
               </Button>
             </div>
@@ -246,7 +246,7 @@ export default function ClientesPage() {
                     <p className="text-xs text-gray-500">{format(new Date(ag.data_hora), 'dd/MM/yyyy HH:mm')}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-sm text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
+                    <p className="font-medium text-sm text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
                     <Badge variant={ag.status === 'realizado' ? 'default' : 'outline'} className="text-xs">
                       {ag.status}
                     </Badge>

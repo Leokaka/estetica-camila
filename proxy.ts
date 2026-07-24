@@ -25,8 +25,10 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login')
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api')
+  const PUBLIC_PATHS = ['/login', '/esqueci-senha', '/redefinir-senha', '/auth/callback']
+  const path = request.nextUrl.pathname
+  const isAuthPage = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'))
+  const isApiRoute = path.startsWith('/api')
 
   if (!user && !isAuthPage && !isApiRoute) {
     const url = request.nextUrl.clone()
@@ -34,7 +36,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthPage) {
+  // Só chuta pro dashboard quem já está logado e tenta acessar /login.
+  // /redefinir-senha e /auth/callback também têm "user" preenchido (sessão de recovery)
+  // e precisam continuar acessíveis nesse estado.
+  if (user && path === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

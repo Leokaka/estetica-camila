@@ -2,14 +2,16 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Sparkles, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -18,7 +20,26 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  useEffect(() => {
+    if (searchParams.get('erro') === 'link_invalido') {
+      setError('Esse link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".')
+    }
+  }, [searchParams])
+
+  // Link de recuperação de senha do Supabase chega como #access_token=...&type=recovery
+  // direto nessa página (fragmento de URL, não dá pra tratar no servidor). O client
+  // detecta e dispara esse evento — daí a gente manda pra tela de nova senha.
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        router.push('/redefinir-senha')
+      }
+    })
+    return () => listener.subscription.unsubscribe()
+  }, [router, supabase])
 
   async function handleLogin(e: React.SyntheticEvent) {
     e.preventDefault()
@@ -37,17 +58,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#F5EFE6' }}>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#F5F0EA]">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full mb-4 shadow-lg" style={{ background: '#7B4F2E' }}>
-            <Sparkles className="h-8 w-8" style={{ color: '#FAF7F2' }} />
-          </div>
-          <h1 className="text-3xl font-bold" style={{ color: '#7B4F2E' }}>Estética Camila</h1>
-          <p className="mt-1" style={{ color: '#A67B5B' }}>Sistema de Gestão</p>
+          <Image src="/logo/selo-cg.png" alt="CG" width={110} height={110} priority className="mb-3" />
+          <h1
+            className="text-3xl text-[#5E4433] tracking-[0.08em]"
+            style={{ fontFamily: 'var(--font-playfair), serif', fontWeight: 600 }}
+          >
+            CAMILA GARCIA
+          </h1>
+          <p className="mt-1 text-xs tracking-[0.4em] text-[#C9A96E] font-medium">ESTÉTICA</p>
         </div>
 
-        <Card className="shadow-xl" style={{ background: '#FAF7F2', border: '1px solid #DDD0BE' }}>
+        <Card className="shadow-xl bg-[#FBF9F5] border border-[#E8DFD2]">
           <CardHeader>
             <CardTitle className="text-xl">Entrar</CardTitle>
             <CardDescription>Acesse sua conta para continuar</CardDescription>
@@ -67,7 +91,12 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Senha</Label>
+                  <Link href="/esqueci-senha" className="text-xs text-[#7A5C4A] hover:underline">
+                    Esqueci minha senha
+                  </Link>
+                </div>
                 <div className="relative">
                   <Input
                     id="password"
@@ -93,7 +122,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full" style={{ background: '#7B4F2E', color: '#FAF7F2' }} disabled={loading}>
+              <Button type="submit" className="w-full bg-[#5E4433] text-[#F5F0EA] hover:bg-[#7A5C4A]" disabled={loading}>
                 {loading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>

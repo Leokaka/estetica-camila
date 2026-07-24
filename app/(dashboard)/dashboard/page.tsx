@@ -155,7 +155,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Faturamento do Mês</CardTitle>
-            <DollarSign className="h-5 w-5 text-[#7B4F2E]" />
+            <DollarSign className="h-5 w-5 text-[#7A5C4A]" />
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.faturamento_mes)}</p>
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${v}`} />
                 <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                <Bar dataKey="faturamento" fill="#e11d48" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="faturamento" fill="#C9A96E" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[#7B4F2E]" />
+              <Calendar className="h-4 w-4 text-[#7A5C4A]" />
               Próximos Agendamentos
             </CardTitle>
           </CardHeader>
@@ -238,7 +238,7 @@ export default function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{ag.cliente?.nome}</p>
                       <p className="text-xs text-gray-500 truncate">{ag.servico?.nome}</p>
-                      <p className="text-xs text-[#7B4F2E] font-medium">
+                      <p className="text-xs text-[#7A5C4A] font-medium">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                       </p>
                     </div>
@@ -258,7 +258,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Gift className="h-4 w-4 text-[#A67B5B]" />
+              <Gift className="h-4 w-4 text-[#8A7160]" />
               Aniversariantes do Mês
             </CardTitle>
           </CardHeader>
@@ -268,12 +268,12 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {aniversariantes.map((c: any) => (
-                  <div key={c.id} className="flex items-center justify-between p-2 rounded-lg bg-[#F5EFE6]">
+                  <div key={c.id} className="flex items-center justify-between p-2 rounded-lg bg-[#F5F0EA]">
                     <div>
                       <p className="text-sm font-medium">{c.nome}</p>
                       <p className="text-xs text-gray-500">{c.telefone}</p>
                     </div>
-                    <span className="text-xs text-[#7B4F2E] font-medium">
+                    <span className="text-xs text-[#7A5C4A] font-medium">
                       {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM')}
                     </span>
                   </div>

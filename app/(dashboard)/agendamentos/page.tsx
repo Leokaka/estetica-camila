@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, MessageCircle, UserPlus } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
@@ -29,9 +29,25 @@ const EMPTY_FORM = {
   local: 'quartinho', valor_cobrado: '', observacoes: ''
 }
 
-const LOCAL_LABELS: Record<string, { label: string; cor: string; split: number }> = {
-  quartinho: { label: 'Quartinho', cor: 'bg-amber-100 text-amber-700', split: 1.0 },
-  karine:    { label: 'Karine (60%)', cor: 'bg-purple-100 text-purple-700', split: 0.6 },
+// Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada)
+const PROMO_ATIVA = true
+const PROMO_LABEL = '15% de inauguração'
+function precoPromo(preco: number) {
+  return Math.floor(preco * 0.85)
+}
+
+const ENDERECO = 'Rua São Teodoro, 833 · Vila Carmosina (2º andar)'
+
+function mensagemConfirmacao(nome: string, servico: string, dataHora: Date, valor: number, promo: boolean) {
+  const data = format(dataHora, 'dd/MM/yyyy')
+  const hora = format(dataHora, 'HH:mm')
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeu agendamento está confirmado:\n✨ ${servico}\n📅 ${data} às ${hora}\n💰 R$ ${valor}${promo ? ` (com ${PROMO_LABEL})` : ''}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
+}
+
+function linkWhatsApp(telefone: string, texto: string) {
+  const d = telefone.replace(/\D/g, '')
+  const num = d.length <= 11 ? `55${d}` : d
+  return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`
 }
 
 function formatCurrency(v: number) {
@@ -51,6 +67,9 @@ export default function AgendamentosPage() {
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null)
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [promo15, setPromo15] = useState(false)
+  const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string } | null>(null)
+  const [salvandoCliente, setSalvandoCliente] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -80,6 +99,8 @@ export default function AgendamentosPage() {
     setEditando(null)
     const dataHora = data ? format(data, "yyyy-MM-dd'T'HH:mm") : ''
     setForm({ ...EMPTY_FORM, data_hora: dataHora })
+    setPromo15(false)
+    setNovaCliente(null)
     setDialogOpen(true)
   }
 
@@ -100,7 +121,40 @@ export default function AgendamentosPage() {
   function onSelectServico(servicoId: string | null) {
     const id = servicoId ?? ''
     const svc = servicos.find(s => s.id === id)
-    setForm(f => ({ ...f, servico_id: id, valor_cobrado: svc ? String(svc.preco) : f.valor_cobrado }))
+    const base = svc ? Number(svc.preco) : null
+    setForm(f => ({
+      ...f,
+      servico_id: id,
+      valor_cobrado: base !== null ? String(promo15 ? precoPromo(base) : base) : f.valor_cobrado,
+    }))
+  }
+
+  function togglePromo(checked: boolean) {
+    setPromo15(checked)
+    const svc = servicos.find(s => s.id === form.servico_id)
+    if (svc) {
+      const base = Number(svc.preco)
+      setForm(f => ({ ...f, valor_cobrado: String(checked ? precoPromo(base) : base) }))
+    }
+  }
+
+  async function salvarNovaCliente() {
+    if (!novaCliente?.nome.trim() || novaCliente.telefone.replace(/\D/g, '').length < 10) {
+      toast.error('Preenche nome e WhatsApp da cliente.')
+      return
+    }
+    setSalvandoCliente(true)
+    const { data, error } = await supabase
+      .from('clientes')
+      .insert({ nome: novaCliente.nome.trim(), telefone: novaCliente.telefone })
+      .select()
+      .single()
+    setSalvandoCliente(false)
+    if (error || !data) { toast.error('Erro ao cadastrar cliente'); return }
+    setClientes(cs => [...cs, data].sort((a, b) => a.nome.localeCompare(b.nome)))
+    setForm(f => ({ ...f, cliente_id: data.id }))
+    setNovaCliente(null)
+    toast.success(`${data.nome} cadastrada!`)
   }
 
   async function salvar(e: React.FormEvent) {
@@ -145,14 +199,11 @@ export default function AgendamentosPage() {
   async function registrarEntradaFinanceira(agendamentoId: string, payload: any) {
     const cliente = clientes.find(c => c.id === payload.cliente_id)
     const servico = servicos.find(s => s.id === payload.servico_id)
-    const split = payload.local === 'karine' ? 0.6 : 1.0
-    const valorRecebido = Number(payload.valor_cobrado) * split
-    const localLabel = payload.local === 'karine' ? ' (Karine 60%)' : ' (Quartinho)'
-    const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}${localLabel}`
+    const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}`
     await supabase.from('lancamentos').insert({
       tipo: 'entrada',
       descricao: desc,
-      valor: valorRecebido,
+      valor: Number(payload.valor_cobrado),
       categoria: 'Serviço',
       data: format(new Date(payload.data_hora), 'yyyy-MM-dd'),
       agendamento_id: agendamentoId,
@@ -198,7 +249,7 @@ export default function AgendamentosPage() {
           <h1 className="text-2xl font-bold text-gray-900">Agendamentos</h1>
           <p className="text-gray-500">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => abrirNovo()} className="bg-[#7B4F2E] hover:bg-[#5C3D20]">
+        <Button onClick={() => abrirNovo()} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
         </Button>
       </div>
@@ -216,7 +267,7 @@ export default function AgendamentosPage() {
                 key={s}
                 size="sm"
                 variant={filtroStatus === s ? 'default' : 'outline'}
-                className={filtroStatus === s ? 'bg-[#7B4F2E] hover:bg-[#5C3D20]' : ''}
+                className={filtroStatus === s ? 'bg-[#7A5C4A] hover:bg-[#5C3D20]' : ''}
                 onClick={() => setFiltroStatus(s)}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -249,9 +300,6 @@ export default function AgendamentosPage() {
                         <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[ag.status]}`}>
                           {ag.status}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${LOCAL_LABELS[ag.local ?? 'quartinho']?.cor}`}>
-                          {LOCAL_LABELS[ag.local ?? 'quartinho']?.label}
-                        </span>
                       </div>
                       <p className="text-sm text-gray-500 truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-gray-400">
@@ -261,6 +309,20 @@ export default function AgendamentosPage() {
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
                           <Button size="sm" variant="outline" className="text-green-600 h-7 px-2 text-xs" onClick={() => marcarRealizado(ag)}>
                             <CheckCircle className="h-3.5 w-3.5 mr-1" /> Realizado
+                          </Button>
+                        )}
+                        {ag.cliente?.telefone && ag.status !== 'cancelado' && (
+                          <Button
+                            size="sm" variant="outline"
+                            className="text-green-600 h-7 px-2"
+                            title="Enviar confirmação no WhatsApp"
+                            onClick={() => window.open(
+                              linkWhatsApp(
+                                ag.cliente.telefone,
+                                mensagemConfirmacao(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', new Date(ag.data_hora), Number(ag.valor_cobrado), false)
+                              ), '_blank')}
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
@@ -277,7 +339,7 @@ export default function AgendamentosPage() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-semibold text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
+                      <p className="font-semibold text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -314,13 +376,13 @@ export default function AgendamentosPage() {
                     key={dia.toISOString()}
                     onClick={() => setDiaSelecionado(selecionado ? null : dia)}
                     className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-[60px] flex flex-col items-center gap-1
-                      ${hoje ? 'ring-2 ring-[#C8A882]' : ''}
-                      ${selecionado ? 'bg-[#7B4F2E] text-white' : 'hover:bg-gray-100'}
+                      ${hoje ? 'ring-2 ring-[#C9A96E]' : ''}
+                      ${selecionado ? 'bg-[#7A5C4A] text-white' : 'hover:bg-gray-100'}
                     `}
                   >
                     <span className="font-medium">{format(dia, 'd')}</span>
                     {agsNoDia.length > 0 && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-white text-[#7B4F2E]' : 'bg-[#EDE4D8] text-[#7B4F2E]'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-white text-[#7A5C4A]' : 'bg-[#EEE0D4] text-[#7A5C4A]'}`}>
                         {agsNoDia.length}
                       </span>
                     )}
@@ -334,7 +396,7 @@ export default function AgendamentosPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>{format(diaSelecionado, "dd 'de' MMMM", { locale: ptBR })}</span>
-                    <Button size="sm" className="bg-[#7B4F2E] hover:bg-[#5C3D20]" onClick={() => abrirNovo(diaSelecionado)}>
+                    <Button size="sm" className="bg-[#7A5C4A] hover:bg-[#5C3D20]" onClick={() => abrirNovo(diaSelecionado)}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> Agendar
                     </Button>
                   </CardTitle>
@@ -351,7 +413,7 @@ export default function AgendamentosPage() {
                             <p className="text-xs text-gray-500">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-[#7B4F2E]">{formatCurrency(ag.valor_cobrado)}</p>
+                            <p className="text-sm font-medium text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
                             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[ag.status]}`}>{ag.status}</span>
                           </div>
                         </div>
@@ -372,13 +434,41 @@ export default function AgendamentosPage() {
           </DialogHeader>
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
-              <Label>Cliente *</Label>
-              <Select value={form.cliente_id} onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '' }))}>
-                <SelectTrigger><SelectValue placeholder="Selecione a cliente" /></SelectTrigger>
-                <SelectContent>
-                  {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label>Cliente *</Label>
+                <button
+                  type="button"
+                  onClick={() => setNovaCliente(nc => nc ? null : { nome: '', telefone: '' })}
+                  className="flex items-center gap-1 text-xs font-medium text-[#7A5C4A] hover:underline"
+                >
+                  <UserPlus className="h-3.5 w-3.5" /> {novaCliente ? 'Cancelar' : 'Nova cliente'}
+                </button>
+              </div>
+              {novaCliente ? (
+                <div className="space-y-2 rounded-lg border border-[#C9A96E] bg-[#FBF9F5] p-3">
+                  <Input
+                    placeholder="Nome da cliente"
+                    value={novaCliente.nome}
+                    onChange={e => setNovaCliente(nc => nc && ({ ...nc, nome: e.target.value }))}
+                  />
+                  <Input
+                    type="tel"
+                    placeholder="WhatsApp (11) 9XXXX-XXXX"
+                    value={novaCliente.telefone}
+                    onChange={e => setNovaCliente(nc => nc && ({ ...nc, telefone: e.target.value }))}
+                  />
+                  <Button type="button" size="sm" className="w-full bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvandoCliente} onClick={salvarNovaCliente}>
+                    {salvandoCliente ? 'Cadastrando...' : 'Cadastrar e selecionar'}
+                  </Button>
+                </div>
+              ) : (
+                <Select value={form.cliente_id} onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '' }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a cliente" /></SelectTrigger>
+                  <SelectContent>
+                    {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Serviço *</Label>
@@ -390,30 +480,15 @@ export default function AgendamentosPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Local *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['quartinho', 'karine'] as const).map(loc => (
-                  <button
-                    key={loc}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, local: loc }))}
-                    className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                      form.local === loc
-                        ? loc === 'quartinho'
-                          ? 'border-amber-500 bg-amber-50 text-amber-700'
-                          : 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    {loc === 'quartinho' ? '🏠 Quartinho' : '💜 Karine (60%)'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
               <Label>Data e Hora *</Label>
               <Input type="datetime-local" value={form.data_hora} onChange={e => setForm(f => ({ ...f, data_hora: e.target.value }))} required />
             </div>
+            {PROMO_ATIVA && !editando && (
+              <label className="flex items-center gap-2 rounded-lg border border-[#C4856A] bg-[#FBF3EE] p-3 text-sm font-medium text-[#C4856A] cursor-pointer">
+                <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-[#C4856A]" />
+                Aplicar {PROMO_LABEL} (15% OFF)
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Valor (R$) *</Label>
@@ -438,7 +513,7 @@ export default function AgendamentosPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-[#7B4F2E] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id}>
+              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Agendar'}
               </Button>
             </div>
