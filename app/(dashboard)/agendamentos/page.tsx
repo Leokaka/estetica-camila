@@ -484,7 +484,11 @@ export default function AgendamentosPage() {
                 </div>
               ) : (
                 <Select value={form.cliente_id} onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '' }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a cliente" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a cliente">
+                      {(v: string) => clientes.find(c => c.id === v)?.nome ?? 'Selecione a cliente'}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                   </SelectContent>
@@ -494,7 +498,11 @@ export default function AgendamentosPage() {
             <div className="space-y-2">
               <Label>Serviço *</Label>
               <Select value={form.servico_id} onValueChange={onSelectServico}>
-                <SelectTrigger><SelectValue placeholder="Selecione o serviço" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o serviço">
+                    {(v: string) => servicos.find(s => s.id === v)?.nome ?? 'Selecione o serviço'}
+                  </SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {servicos.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
                 </SelectContent>
@@ -557,7 +565,11 @@ export default function AgendamentosPage() {
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v ?? f.status }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(v: string) => ({ agendado: 'Agendado', confirmado: 'Confirmado', realizado: 'Realizado', cancelado: 'Cancelado' } as Record<string, string>)[v] ?? v}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="agendado">Agendado</SelectItem>
                     <SelectItem value="confirmado">Confirmado</SelectItem>
