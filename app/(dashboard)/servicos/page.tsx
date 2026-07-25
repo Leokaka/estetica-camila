@@ -244,29 +244,7 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Calculadora em tempo real — oculta hoje (inauguração, tela pode ser vista por clientes) */}
-            {false && lucroPotencial !== null && (
-              <div className={`rounded-lg p-3 border ${lucroPotencial >= 0 ? 'bg-success-soft border-success/20' : 'bg-danger-soft border-danger/20'}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <Calculator className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs font-medium text-brand-text-soft">Calculadora de Lucro</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm">Lucro por atendimento:</span>
-                  <span className={`font-bold ${lucroPotencial >= 0 ? 'text-success' : 'text-danger'}`}>
-                    {formatCurrency(lucroPotencial)}
-                  </span>
-                </div>
-                {margemPotencial && (
-                  <div className="flex justify-between">
-                    <span className="text-sm">Margem:</span>
-                    <span className={`font-bold ${margemClasse(Number(margemPotencial))}`}>
-                      {margemPotencial}%
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Calculadora de lucro removida hoje (inauguração, tela pode ser vista por clientes) */}
 
             <div className="space-y-2">
               <Label>Duração (minutos)</Label>
