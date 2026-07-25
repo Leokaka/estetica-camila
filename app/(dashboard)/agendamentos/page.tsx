@@ -16,6 +16,7 @@ import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, MessageCircle, User
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
+import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados } from '@/lib/agenda'
 
 const STATUS_COLORS: Record<string, string> = {
   agendado: 'bg-blue-100 text-[#8A6A2E]',
@@ -25,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const EMPTY_FORM = {
-  cliente_id: '', servico_id: '', data_hora: '', status: 'agendado',
+  cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
   local: 'quartinho', valor_cobrado: '', observacoes: ''
 }
 
@@ -82,7 +83,7 @@ export default function AgendamentosPage() {
 
     const [{ data: ags }, { data: cls }, { data: svs }] = await Promise.all([
       supabase.from('agendamentos')
-        .select('*, cliente:clientes(id, nome, telefone), servico:servicos(id, nome, preco)')
+        .select('*, cliente:clientes(id, nome, telefone), servico:servicos(id, nome, preco, duracao_minutos)')
         .gte('data_hora', inicio).lte('data_hora', fim)
         .order('data_hora'),
       supabase.from('clientes').select('*').order('nome'),
@@ -97,8 +98,7 @@ export default function AgendamentosPage() {
 
   function abrirNovo(data?: Date) {
     setEditando(null)
-    const dataHora = data ? format(data, "yyyy-MM-dd'T'HH:mm") : ''
-    setForm({ ...EMPTY_FORM, data_hora: dataHora })
+    setForm({ ...EMPTY_FORM, data: data ? format(data, 'yyyy-MM-dd') : '' })
     setPromo15(false)
     setNovaCliente(null)
     setDialogOpen(true)
@@ -106,10 +106,12 @@ export default function AgendamentosPage() {
 
   function abrirEditar(ag: Agendamento) {
     setEditando(ag)
+    const dt = new Date(ag.data_hora)
     setForm({
       cliente_id: ag.cliente_id,
       servico_id: ag.servico_id,
-      data_hora: format(new Date(ag.data_hora), "yyyy-MM-dd'T'HH:mm"),
+      data: format(dt, 'yyyy-MM-dd'),
+      hora: format(dt, 'HH:mm'),
       status: ag.status,
       local: ag.local ?? 'quartinho',
       valor_cobrado: String(ag.valor_cobrado),
@@ -117,6 +119,23 @@ export default function AgendamentosPage() {
     })
     setDialogOpen(true)
   }
+
+  // Horários possíveis pro serviço+data escolhidos, descontando almoço e conflitos.
+  // Ao editar, o próprio agendamento não conta como conflito consigo mesmo.
+  const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
+  const horariosDoServico = (() => {
+    if (!form.servico_id || !form.data) return []
+    const duracao = servicoEscolhido?.duracao_minutos ?? 60
+    const dataObj = new Date(form.data + 'T00:00:00')
+    const ocupados = agendamentosParaOcupados(
+      agendamentos.filter((ag: any) =>
+        ag.status !== 'cancelado' &&
+        ag.id !== editando?.id &&
+        isSameDay(new Date(ag.data_hora), dataObj)
+      )
+    )
+    return horariosDisponiveis({ duracaoMinutos: duracao, ocupados })
+  })()
 
   function onSelectServico(servicoId: string | null) {
     const id = servicoId ?? ''
@@ -163,7 +182,7 @@ export default function AgendamentosPage() {
     const payload = {
       cliente_id: form.cliente_id,
       servico_id: form.servico_id,
-      data_hora: new Date(form.data_hora).toISOString(),
+      data_hora: new Date(`${form.data}T${form.hora}:00`).toISOString(),
       status: form.status as Agendamento['status'],
       local: form.local as Agendamento['local'],
       valor_cobrado: Number(form.valor_cobrado),
@@ -481,10 +500,49 @@ export default function AgendamentosPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Data e Hora *</Label>
-              <Input type="datetime-local" value={form.data_hora} onChange={e => setForm(f => ({ ...f, data_hora: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Input
+                  type="date"
+                  value={form.data}
+                  onChange={e => setForm(f => ({ ...f, data: e.target.value, hora: '' }))}
+                  required
+                />
+                {form.data && !diaFunciona(new Date(form.data + 'T00:00:00')) && (
+                  <p className="text-xs text-[#B5493A]">Fechado aos domingos.</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Horário *</Label>
+                <Select
+                  value={form.hora}
+                  onValueChange={v => setForm(f => ({ ...f, hora: v ?? '' }))}
+                  disabled={!form.servico_id || !form.data}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={!form.servico_id ? 'Escolha o serviço primeiro' : 'Selecione'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {horariosDoServico.length === 0 && form.data && form.servico_id && (
+                      <div className="px-3 py-2 text-xs text-[#8A7160]">Sem horário livre nesse dia pra esse serviço</div>
+                    )}
+                    {horariosDoServico.map(h => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                    {/* garante que o horário atual (edição) apareça mesmo se não estiver mais "livre" */}
+                    {editando && form.hora && !horariosDoServico.includes(form.hora) && (
+                      <SelectItem value={form.hora}>{form.hora} (atual)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            {form.servico_id && (
+              <p className="text-xs text-[#8A7160] -mt-1">
+                Duração: {servicoEscolhido?.duracao_minutos ?? 60} min · almoço 13h–14h já é descontado
+              </p>
+            )}
             {PROMO_ATIVA && !editando && (
               <label className="flex items-center gap-2 rounded-lg border border-[#C4856A] bg-[#FBF3EE] p-3 text-sm font-medium text-[#C4856A] cursor-pointer">
                 <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-[#C4856A]" />
@@ -515,7 +573,7 @@ export default function AgendamentosPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id}>
+              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id || !form.data || !form.hora}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Agendar'}
               </Button>
             </div>

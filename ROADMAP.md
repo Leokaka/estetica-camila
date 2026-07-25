@@ -40,3 +40,13 @@
 - https://quarkclinic.com.br/blog/sistema-de-gestao-para-clinicas-de-estetica/
 - https://www.belasis.com.br/melhor-gestao-controle-clinica-estetica-software-sistema-agenda-prontuario-estoque-financeiro-brasil/
 - https://agendiva.com.br/blog/software-de-gestao-para-clinica-de-estetica
+
+## 6. Horários de funcionamento (feito nessa sessão)
+- ✅ Motor de disponibilidade real (`lib/agenda.ts`): Seg-Sáb 9h-18h, almoço 13h-14h,
+  respeita a duração de cada serviço e não deixa marcar em cima de agendamento existente
+- Base pronta pro agendamento self-service da cliente (item futuro) — é a mesma lógica,
+  só falta expor via rota pública sem autenticação
+
+## 7. Bug conhecido (pendente)
+- Select de Cliente/Serviço no formulário de "Novo Agendamento" mostra o ID (uuid) no botão
+  fechado em vez do nome — funciona certo depois de escolher, só o texto do trigger está errado
