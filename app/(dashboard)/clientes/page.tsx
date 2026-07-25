@@ -111,8 +111,8 @@ export default function ClientesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-500">{clientes.length} clientes cadastradas</p>
+          <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Clientes</h1>
+          <p className="text-[#8A7160]">{clientes.length} clientes cadastradas</p>
         </div>
         <Button onClick={abrirNovo} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Nova Cliente
@@ -120,7 +120,7 @@ export default function ClientesPage() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8927E]" />
         <Input
           placeholder="Buscar por nome, telefone ou email..."
           className="pl-10"
@@ -130,9 +130,9 @@ export default function ClientesPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando...</div>
+        <div className="text-center py-12 text-[#A8927E]">Carregando...</div>
       ) : clientesFiltrados.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-[#A8927E]">
           {busca ? 'Nenhuma cliente encontrada' : 'Nenhuma cliente cadastrada ainda'}
         </div>
       ) : (
@@ -151,28 +151,28 @@ export default function ClientesPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base">{c.nome}</CardTitle>
-                        {idade && <span className="text-xs text-gray-400">{idade} anos</span>}
+                        {idade && <span className="text-xs text-[#A8927E]">{idade} anos</span>}
                       </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2 text-sm text-[#5E4433]">
                     <Phone className="h-3.5 w-3.5 shrink-0" /> {c.telefone}
                   </div>
                   {c.email && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 truncate">
+                    <div className="flex items-center gap-2 text-sm text-[#5E4433] truncate">
                       <Mail className="h-3.5 w-3.5 shrink-0" /> {c.email}
                     </div>
                   )}
                   {c.data_nascimento && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-[#5E4433]">
                       <Calendar className="h-3.5 w-3.5 shrink-0" />
                       {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM/yyyy')}
                     </div>
                   )}
                   {c.observacoes && (
-                    <p className="text-xs text-gray-400 italic truncate">{c.observacoes}</p>
+                    <p className="text-xs text-[#A8927E] italic truncate">{c.observacoes}</p>
                   )}
                   <div className="flex gap-2 pt-2">
                     <Button size="sm" variant="outline" className="flex-1" onClick={() => loadHistorico(c)}>
@@ -181,7 +181,7 @@ export default function ClientesPage() {
                     <Button size="sm" variant="outline" onClick={() => abrirEditar(c)}>
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="outline" className="text-red-500 hover:text-red-700" onClick={() => excluir(c.id)}>
+                    <Button size="sm" variant="outline" className="text-[#B5493A] hover:text-red-700" onClick={() => excluir(c.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -236,14 +236,14 @@ export default function ClientesPage() {
             <DialogTitle>Histórico — {clienteHist?.nome}</DialogTitle>
           </DialogHeader>
           {historico.length === 0 ? (
-            <p className="text-center text-gray-400 py-8">Nenhum atendimento registrado</p>
+            <p className="text-center text-[#A8927E] py-8">Nenhum atendimento registrado</p>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {historico.map((ag: any) => (
                 <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border">
                   <div>
                     <p className="font-medium text-sm">{ag.servico?.nome}</p>
-                    <p className="text-xs text-gray-500">{format(new Date(ag.data_hora), 'dd/MM/yyyy HH:mm')}</p>
+                    <p className="text-xs text-[#8A7160]">{format(new Date(ag.data_hora), 'dd/MM/yyyy HH:mm')}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-sm text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>

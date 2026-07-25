@@ -118,8 +118,8 @@ export default function ServicosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Serviços</h1>
-          <p className="text-gray-500">{servicos.filter(s => s.ativo).length} serviços ativos</p>
+          <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Serviços</h1>
+          <p className="text-[#8A7160]">{servicos.filter(s => s.ativo).length} serviços ativos</p>
         </div>
         <Button onClick={abrirNovo} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Serviço
@@ -158,9 +158,9 @@ export default function ServicosPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Carregando...</div>
+        <div className="text-center py-12 text-[#A8927E]">Carregando...</div>
       ) : servicosFiltrados.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">Nenhum serviço encontrado</div>
+        <div className="text-center py-12 text-[#A8927E]">Nenhum serviço encontrado</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {servicosFiltrados.map((s) => {
@@ -178,35 +178,35 @@ export default function ServicosPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {s.descricao && <p className="text-xs text-gray-500">{s.descricao}</p>}
+                  {s.descricao && <p className="text-xs text-[#8A7160]">{s.descricao}</p>}
 
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-green-50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-500">Preço de Venda</p>
-                      <p className="font-bold text-green-700">{formatCurrency(s.preco)}</p>
+                    <div className="bg-[#EEF3EA] rounded-lg p-2 text-center">
+                      <p className="text-xs text-[#8A7160]">Preço de Venda</p>
+                      <p className="font-bold text-[#4F7A54]">{formatCurrency(s.preco)}</p>
                     </div>
-                    <div className="bg-red-50 rounded-lg p-2 text-center">
-                      <p className="text-xs text-gray-500">Custo</p>
-                      <p className="font-bold text-red-600">{formatCurrency(s.custo)}</p>
+                    <div className="bg-[#FBEEEA] rounded-lg p-2 text-center">
+                      <p className="text-xs text-[#8A7160]">Custo</p>
+                      <p className="font-bold text-[#B5493A]">{formatCurrency(s.custo)}</p>
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 rounded-lg p-2">
+                  <div className="bg-[#F6EFE0] rounded-lg p-2">
                     <div className="flex justify-between items-center">
                       <div>
-                        <p className="text-xs text-gray-500">Lucro por atendimento</p>
-                        <p className="font-bold text-blue-700">{formatCurrency(lucro)}</p>
+                        <p className="text-xs text-[#8A7160]">Lucro por atendimento</p>
+                        <p className="font-bold text-[#8A6A2E]">{formatCurrency(lucro)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-gray-500">Margem</p>
-                        <p className={`font-bold text-sm ${margem >= 50 ? 'text-green-600' : margem >= 30 ? 'text-amber-600' : 'text-red-600'}`}>
+                        <p className="text-xs text-[#8A7160]">Margem</p>
+                        <p className={`font-bold text-sm ${margem >= 50 ? 'text-[#4F7A54]' : margem >= 30 ? 'text-[#B8863F]' : 'text-[#B5493A]'}`}>
                           {margem.toFixed(1)}%
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <div className="flex items-center gap-1 text-xs text-[#8A7160]">
                     <Clock className="h-3.5 w-3.5" />
                     {s.duracao_minutos >= 60
                       ? `${Math.floor(s.duracao_minutos / 60)}h${s.duracao_minutos % 60 > 0 ? ` ${s.duracao_minutos % 60}min` : ''}`
@@ -220,7 +220,7 @@ export default function ServicosPage() {
                     <Button size="sm" variant="outline" onClick={() => abrirEditar(s)}>
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="outline" className="text-red-500 hover:text-red-700" onClick={() => excluir(s.id)}>
+                    <Button size="sm" variant="outline" className="text-[#B5493A] hover:text-red-700" onClick={() => excluir(s.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -263,21 +263,21 @@ export default function ServicosPage() {
 
             {/* Calculadora em tempo real */}
             {lucroPotencial !== null && (
-              <div className={`rounded-lg p-3 ${lucroPotencial >= 0 ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <div className={`rounded-lg p-3 ${lucroPotencial >= 0 ? 'bg-[#EEF3EA] border border-[#C8DCC5]' : 'bg-[#FBEEEA] border border-[#EFCFC5]'}`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <Calculator className="h-4 w-4 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">Calculadora de Lucro</span>
+                  <Calculator className="h-4 w-4 text-[#8A7160]" />
+                  <span className="text-xs font-medium text-[#5E4433]">Calculadora de Lucro</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm">Lucro por atendimento:</span>
-                  <span className={`font-bold ${lucroPotencial >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  <span className={`font-bold ${lucroPotencial >= 0 ? 'text-[#4F7A54]' : 'text-[#B5493A]'}`}>
                     {formatCurrency(lucroPotencial)}
                   </span>
                 </div>
                 {margemPotencial && (
                   <div className="flex justify-between">
                     <span className="text-sm">Margem:</span>
-                    <span className={`font-bold ${Number(margemPotencial) >= 50 ? 'text-green-700' : Number(margemPotencial) >= 30 ? 'text-amber-600' : 'text-red-600'}`}>
+                    <span className={`font-bold ${Number(margemPotencial) >= 50 ? 'text-[#4F7A54]' : Number(margemPotencial) >= 30 ? 'text-[#B8863F]' : 'text-[#B5493A]'}`}>
                       {margemPotencial}%
                     </span>
                   </div>

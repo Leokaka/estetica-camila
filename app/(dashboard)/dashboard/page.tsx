@@ -138,7 +138,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Carregando...</div>
+        <div className="text-[#8A7160]">Carregando...</div>
       </div>
     )
   }
@@ -146,21 +146,21 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">{format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}</p>
+        <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Dashboard</h1>
+        <p className="text-[#8A7160]">{format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}</p>
       </div>
 
       {/* Cards de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Faturamento do Mês</CardTitle>
+            <CardTitle className="text-sm font-medium text-[#5E4433]">Faturamento do Mês</CardTitle>
             <DollarSign className="h-5 w-5 text-[#7A5C4A]" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.faturamento_mes)}</p>
+            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.faturamento_mes)}</p>
             {variacaoFaturamento && (
-              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoFaturamento) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoFaturamento) >= 0 ? 'text-[#4F7A54]' : 'text-[#B5493A]'}`}>
                 {Number(variacaoFaturamento) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {variacaoFaturamento}% vs mês anterior
               </p>
@@ -170,34 +170,34 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Lucro do Mês</CardTitle>
-            <TrendingUp className="h-5 w-5 text-green-600" />
+            <CardTitle className="text-sm font-medium text-[#5E4433]">Lucro do Mês</CardTitle>
+            <TrendingUp className="h-5 w-5 text-[#7A9B76]" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.lucro_mes)}</p>
-            <p className="text-xs mt-1 text-gray-500">Despesas: {formatCurrency(stats.despesas_mes)}</p>
+            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.lucro_mes)}</p>
+            <p className="text-xs mt-1 text-[#8A7160]">Despesas: {formatCurrency(stats.despesas_mes)}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total de Clientes</CardTitle>
-            <Users className="h-5 w-5 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-[#5E4433]">Total de Clientes</CardTitle>
+            <Users className="h-5 w-5 text-[#7A5C4A]" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">{stats.total_clientes}</p>
-            <p className="text-xs mt-1 text-green-600">+{stats.novos_clientes_mes} novas este mês</p>
+            <p className="text-2xl font-bold text-[#2E2015]">{stats.total_clientes}</p>
+            <p className="text-xs mt-1 text-[#7A9B76]">+{stats.novos_clientes_mes} novas este mês</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Ticket Médio</CardTitle>
-            <Scissors className="h-5 w-5 text-purple-600" />
+            <CardTitle className="text-sm font-medium text-[#5E4433]">Ticket Médio</CardTitle>
+            <Scissors className="h-5 w-5 text-[#C9A96E]" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.ticket_medio)}</p>
-            <p className="text-xs mt-1 text-gray-500">{stats.agendamentos_mes} atendimentos no mês</p>
+            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.ticket_medio)}</p>
+            <p className="text-xs mt-1 text-[#8A7160]">{stats.agendamentos_mes} atendimentos no mês</p>
           </CardContent>
         </Card>
       </div>
@@ -230,14 +230,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {proximosAgendamentos.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">Nenhum agendamento próximo</p>
+              <p className="text-sm text-[#A8927E] text-center py-4">Nenhum agendamento próximo</p>
             ) : (
               <div className="space-y-3">
                 {proximosAgendamentos.map((ag: any) => (
-                  <div key={ag.id} className="flex items-start gap-3 p-2 rounded-lg bg-gray-50">
+                  <div key={ag.id} className="flex items-start gap-3 p-2.5 rounded-lg bg-[#F8F3EB]">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{ag.cliente?.nome}</p>
-                      <p className="text-xs text-gray-500 truncate">{ag.servico?.nome}</p>
+                      <p className="text-sm font-medium text-[#2E2015] truncate">{ag.cliente?.nome}</p>
+                      <p className="text-xs text-[#8A7160] truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-[#7A5C4A] font-medium">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                       </p>
@@ -264,14 +264,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {aniversariantes.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">Nenhum aniversariante este mês</p>
+              <p className="text-sm text-[#A8927E] text-center py-4">Nenhum aniversariante este mês</p>
             ) : (
               <div className="space-y-2">
                 {aniversariantes.map((c: any) => (
-                  <div key={c.id} className="flex items-center justify-between p-2 rounded-lg bg-[#F5F0EA]">
+                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-[#F8F3EB]">
                     <div>
-                      <p className="text-sm font-medium">{c.nome}</p>
-                      <p className="text-xs text-gray-500">{c.telefone}</p>
+                      <p className="text-sm font-medium text-[#2E2015]">{c.nome}</p>
+                      <p className="text-xs text-[#8A7160]">{c.telefone}</p>
                     </div>
                     <span className="text-xs text-[#7A5C4A] font-medium">
                       {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM')}
@@ -286,13 +286,13 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
+              <AlertCircle className="h-4 w-4 text-[#C4856A]" />
               Clientes sem Retorno (+60 dias)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {clientesSemRetorno.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">Todas as clientes retornaram recentemente</p>
+              <p className="text-sm text-[#A8927E] text-center py-4">Todas as clientes retornaram recentemente</p>
             ) : (
               <div className="space-y-2">
                 {clientesSemRetorno.map((c: any) => {
@@ -303,13 +303,13 @@ export default function DashboardPage() {
                     ? differenceInDays(new Date(), new Date(ultimoAg.data_hora))
                     : null
                   return (
-                    <div key={c.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50">
+                    <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-[#FBF0EA]">
                       <div>
-                        <p className="text-sm font-medium">{c.nome}</p>
-                        <p className="text-xs text-gray-500">{c.telefone}</p>
+                        <p className="text-sm font-medium text-[#2E2015]">{c.nome}</p>
+                        <p className="text-xs text-[#8A7160]">{c.telefone}</p>
                       </div>
                       {diasSemRetorno && (
-                        <span className="text-xs text-amber-600 font-medium">{diasSemRetorno}d atrás</span>
+                        <span className="text-xs text-[#C4856A] font-medium">{diasSemRetorno}d atrás</span>
                       )}
                     </div>
                   )

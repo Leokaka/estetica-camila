@@ -18,8 +18,8 @@ import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 
 const STATUS_COLORS: Record<string, string> = {
-  agendado: 'bg-blue-100 text-blue-700',
-  confirmado: 'bg-green-100 text-green-700',
+  agendado: 'bg-blue-100 text-[#8A6A2E]',
+  confirmado: 'bg-green-100 text-[#4F7A54]',
   realizado: 'bg-gray-100 text-gray-700',
   cancelado: 'bg-red-100 text-red-700',
 }
@@ -246,8 +246,8 @@ export default function AgendamentosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agendamentos</h1>
-          <p className="text-gray-500">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
+          <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Agendamentos</h1>
+          <p className="text-[#8A7160]">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
         <Button onClick={() => abrirNovo()} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
           <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
@@ -286,9 +286,9 @@ export default function AgendamentosPage() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-gray-400">Carregando...</div>
+            <div className="text-center py-12 text-[#A8927E]">Carregando...</div>
           ) : agendamentosFiltrados.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">Nenhum agendamento neste mês</div>
+            <div className="text-center py-12 text-[#A8927E]">Nenhum agendamento neste mês</div>
           ) : (
             <div className="space-y-2">
               {agendamentosFiltrados.map((ag: any) => (
@@ -301,20 +301,20 @@ export default function AgendamentosPage() {
                           {ag.status}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 truncate">{ag.servico?.nome}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-sm text-[#8A7160] truncate">{ag.servico?.nome}</p>
+                      <p className="text-xs text-[#A8927E]">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
-                          <Button size="sm" variant="outline" className="text-green-600 h-7 px-2 text-xs" onClick={() => marcarRealizado(ag)}>
+                          <Button size="sm" variant="outline" className="text-[#4F7A54] h-7 px-2 text-xs" onClick={() => marcarRealizado(ag)}>
                             <CheckCircle className="h-3.5 w-3.5 mr-1" /> Realizado
                           </Button>
                         )}
                         {ag.cliente?.telefone && ag.status !== 'cancelado' && (
                           <Button
                             size="sm" variant="outline"
-                            className="text-green-600 h-7 px-2"
+                            className="text-[#4F7A54] h-7 px-2"
                             title="Enviar confirmação no WhatsApp"
                             onClick={() => window.open(
                               linkWhatsApp(
@@ -326,14 +326,14 @@ export default function AgendamentosPage() {
                           </Button>
                         )}
                         {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
-                          <Button size="sm" variant="outline" className="text-red-500 h-7 px-2" onClick={() => cancelar(ag.id)} title="Cancelar">
+                          <Button size="sm" variant="outline" className="text-[#B5493A] h-7 px-2" onClick={() => cancelar(ag.id)} title="Cancelar">
                             <XCircle className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => abrirEditar(ag)}>
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
-                        <Button size="sm" variant="outline" className="text-red-500 h-7 px-2" onClick={() => excluir(ag.id)}>
+                        <Button size="sm" variant="outline" className="text-[#B5493A] h-7 px-2" onClick={() => excluir(ag.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -362,7 +362,7 @@ export default function AgendamentosPage() {
 
             <div className="grid grid-cols-7 gap-1">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                <div key={d} className="text-center text-xs font-medium text-gray-500 py-2">{d}</div>
+                <div key={d} className="text-center text-xs font-medium text-[#8A7160] py-2">{d}</div>
               ))}
               {Array.from({ length: diasDoMes[0].getDay() }).map((_, i) => (
                 <div key={`empty-${i}`} />
@@ -403,14 +403,14 @@ export default function AgendamentosPage() {
                 </CardHeader>
                 <CardContent>
                   {agendamentosDoDia.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-4">Nenhum agendamento neste dia</p>
+                    <p className="text-sm text-[#A8927E] text-center py-4">Nenhum agendamento neste dia</p>
                   ) : (
                     <div className="space-y-2">
                       {agendamentosDoDia.map((ag: any) => (
                         <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border">
                           <div>
                             <p className="font-medium text-sm">{ag.cliente?.nome}</p>
-                            <p className="text-xs text-gray-500">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
+                            <p className="text-xs text-[#8A7160]">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-medium text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
