@@ -41,7 +41,7 @@ export async function proxy(request: NextRequest) {
   // e precisam continuar acessíveis nesse estado.
   if (user && path === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = '/agendamentos'
     return NextResponse.redirect(url)
   }
 

@@ -170,8 +170,6 @@ export default function ServicosPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {servicosFiltrados.map((s) => {
-            const lucro = s.preco - s.custo
-            const margem = s.preco > 0 ? (lucro / s.preco * 100) : 0
             return (
               <Card key={s.id} className={`hover:shadow-md transition-shadow ${!s.ativo ? 'opacity-60' : ''}`}>
                 <CardHeader className="pb-3">
@@ -186,30 +184,9 @@ export default function ServicosPage() {
                 <CardContent className="space-y-3">
                   {s.descricao && <p className="text-xs text-muted-foreground">{s.descricao}</p>}
 
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-success-soft rounded-lg p-2 text-center">
-                      <p className="text-xs text-muted-foreground">Preço de Venda</p>
-                      <p className="font-bold text-success">{formatCurrency(s.preco)}</p>
-                    </div>
-                    <div className="bg-danger-soft rounded-lg p-2 text-center">
-                      <p className="text-xs text-muted-foreground">Custo</p>
-                      <p className="font-bold text-danger">{formatCurrency(s.custo)}</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-warning-soft rounded-lg p-2">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Lucro por atendimento</p>
-                        <p className="font-bold text-warning">{formatCurrency(lucro)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Margem</p>
-                        <p className={`font-bold text-sm ${margemClasse(margem)}`}>
-                          {margem.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
+                  <div className="bg-success-soft rounded-lg p-2 text-center">
+                    <p className="text-xs text-muted-foreground">Preço</p>
+                    <p className="font-bold text-success">{formatCurrency(s.preco)}</p>
                   </div>
 
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -267,8 +244,8 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Calculadora em tempo real */}
-            {lucroPotencial !== null && (
+            {/* Calculadora em tempo real — oculta hoje (inauguração, tela pode ser vista por clientes) */}
+            {false && lucroPotencial !== null && (
               <div className={`rounded-lg p-3 border ${lucroPotencial >= 0 ? 'bg-success-soft border-success/20' : 'bg-danger-soft border-danger/20'}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Calculator className="h-4 w-4 text-muted-foreground" />

@@ -58,7 +58,7 @@ function LoginForm() {
       setError('Email ou senha incorretos. Tente novamente.')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      router.push('/agendamentos')
       router.refresh()
     }
   }
