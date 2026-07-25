@@ -13,11 +13,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxItem, useComboboxFilter } from '@/components/ui/combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados } from '@/lib/agenda'
@@ -50,7 +51,7 @@ export default function AgendamentosPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [salvando, setSalvando] = useState(false)
   const [mesAtual, setMesAtual] = useState(new Date())
-  const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null)
+  const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(new Date())
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [promo15, setPromo15] = useState(false)
   const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string } | null>(null)
@@ -121,6 +122,32 @@ export default function AgendamentosPage() {
     )
     return horariosDisponiveis({ duracaoMinutos: duracao, ocupados })
   })()
+
+  // Tira rápida de dias do mês carregado, pra sugerir data ao marcar ou reagendar
+  // sem precisar abrir o calendário nativo. Só cobre o mês em exibição (mesAtual).
+  const diasParaEscolher = (() => {
+    const hoje = startOfDay(new Date())
+    const inicioMes = startOfMonth(mesAtual)
+    const inicio = isBefore(inicioMes, hoje) ? hoje : inicioMes
+    const fim = endOfMonth(mesAtual)
+    if (isBefore(fim, inicio)) return []
+    return eachDayOfInterval({ start: inicio, end: fim })
+  })()
+
+  function horariosLivresNoDia(dia: Date) {
+    if (!servicoEscolhido) return diaFunciona(dia)
+    const ocupados = agendamentosParaOcupados(
+      agendamentos.filter((ag: any) =>
+        ag.status !== 'cancelado' &&
+        ag.id !== editando?.id &&
+        isSameDay(new Date(ag.data_hora), dia)
+      )
+    )
+    return horariosDisponiveis({ duracaoMinutos: servicoEscolhido.duracao_minutos, ocupados }).length > 0
+  }
+
+  const filtroClientes = useComboboxFilter()
+  const filtroServicos = useComboboxFilter()
 
   function onSelectServico(servicoId: string | null) {
     const id = servicoId ?? ''
@@ -331,11 +358,16 @@ export default function AgendamentosPage() {
                           </Button>
                         )}
                         {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => abrirEditar(ag)} title="Mudar dia/horário">
+                            <CalendarClock className="h-3.5 w-3.5 mr-1" /> Reagendar
+                          </Button>
+                        )}
+                        {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
                           <Button size="sm" variant="outline" className="text-danger h-7 px-2" onClick={() => setAcao({ tipo: 'cancelar', ag })} title="Cancelar">
                             <XCircle className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => abrirEditar(ag)}>
+                        <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => abrirEditar(ag)} title="Editar detalhes">
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="outline" className="text-danger h-7 px-2" onClick={() => setAcao({ tipo: 'excluir', ag })}>
@@ -373,21 +405,22 @@ export default function AgendamentosPage() {
                 <div key={`empty-${i}`} />
               ))}
               {diasDoMes.map(dia => {
-                const agsNoDia = agendamentos.filter(ag => isSameDay(new Date(ag.data_hora), dia))
+                const agsNoDia = agendamentos.filter(ag => ag.status !== 'cancelado' && isSameDay(new Date(ag.data_hora), dia))
                 const hoje = isToday(dia)
                 const selecionado = diaSelecionado && isSameDay(dia, diaSelecionado)
+                const fechado = !diaFunciona(dia)
                 return (
                   <button
                     key={dia.toISOString()}
                     onClick={() => setDiaSelecionado(selecionado ? null : dia)}
                     className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-15 flex flex-col items-center gap-1
-                      ${hoje ? 'ring-2 ring-brand-gold' : ''}
-                      ${selecionado ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}
+                      ${hoje && !selecionado ? 'ring-2 ring-brand-gold' : ''}
+                      ${selecionado ? 'bg-primary text-primary-foreground' : fechado ? 'text-muted-foreground/50 hover:bg-muted' : 'hover:bg-muted'}
                     `}
                   >
                     <span className="font-medium">{format(dia, 'd')}</span>
                     {agsNoDia.length > 0 && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-primary-foreground text-primary' : 'bg-accent text-primary'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${selecionado ? 'bg-primary-foreground text-primary' : 'bg-accent text-primary'}`}>
                         {agsNoDia.length}
                       </span>
                     )}
@@ -397,13 +430,20 @@ export default function AgendamentosPage() {
             </div>
 
             {diaSelecionado && (
-              <Card>
+              <Card className={isToday(diaSelecionado) ? 'border-brand-gold/50' : undefined}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between">
-                    <span>{format(diaSelecionado, "dd 'de' MMMM", { locale: ptBR })}</span>
-                    <Button size="sm" onClick={() => abrirNovo(diaSelecionado)}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Agendar
-                    </Button>
+                    <span className="flex items-center gap-2">
+                      {format(diaSelecionado, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                      {isToday(diaSelecionado) && <Badge variant="info">Hoje</Badge>}
+                    </span>
+                    {diaFunciona(diaSelecionado) ? (
+                      <Button size="sm" onClick={() => abrirNovo(diaSelecionado)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Agendar
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-brand-muted-soft">Fechado</span>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -412,12 +452,17 @@ export default function AgendamentosPage() {
                   ) : (
                     <div className="space-y-2">
                       {agendamentosDoDia.map((ag: any) => (
-                        <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border border-brand-border">
-                          <div>
-                            <p className="font-medium text-sm">{ag.cliente?.nome}</p>
-                            <p className="text-xs text-muted-foreground">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
+                        <div key={ag.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-brand-border">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="shrink-0 rounded-lg bg-brand-surface px-2.5 py-1.5 text-center">
+                              <span className="font-heading text-sm font-semibold text-brand-dark">{format(new Date(ag.data_hora), 'HH:mm')}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{ag.cliente?.nome}</p>
+                              <p className="text-xs text-muted-foreground truncate">{ag.servico?.nome}</p>
+                            </div>
                           </div>
-                          <div className="text-right space-y-1">
+                          <div className="text-right space-y-1 shrink-0">
                             <p className="text-sm font-medium text-primary">{formatCurrency(ag.valor_cobrado)}</p>
                             <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]}>
                               {STATUS_LABELS[ag.status as Agendamento['status']]}
@@ -469,68 +514,116 @@ export default function AgendamentosPage() {
                   </Button>
                 </div>
               ) : (
-                <Select value={form.cliente_id} onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '' }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a cliente">
-                      {clientes.find(c => c.id === form.cliente_id)?.nome}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  items={clientes.map(c => c.id)}
+                  value={form.cliente_id || null}
+                  onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '', }))}
+                  itemToStringLabel={(id: string) => clientes.find(c => c.id === id)?.nome ?? ''}
+                  filter={(id: string, query: string) => filtroClientes.contains(id, query, (v) => clientes.find(c => c.id === v)?.nome ?? '')}
+                  openOnInputClick
+                >
+                  <ComboboxInputGroup>
+                    <ComboboxInput placeholder="Buscar cliente..." />
+                  </ComboboxInputGroup>
+                  <ComboboxContent>
+                    {(id: string) => (
+                      <ComboboxItem key={id} value={id}>{clientes.find(c => c.id === id)?.nome}</ComboboxItem>
+                    )}
+                  </ComboboxContent>
+                </Combobox>
               )}
             </div>
             <div className="space-y-2">
               <Label>Serviço *</Label>
-              <Select value={form.servico_id} onValueChange={onSelectServico}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o serviço">
-                    {servicos.find(s => s.id === form.servico_id)?.nome}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {servicos.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                items={servicos.map(s => s.id)}
+                value={form.servico_id || null}
+                onValueChange={onSelectServico}
+                itemToStringLabel={(id: string) => servicos.find(s => s.id === id)?.nome ?? ''}
+                filter={(id: string, query: string) => filtroServicos.contains(id, query, (v) => servicos.find(s => s.id === v)?.nome ?? '')}
+                openOnInputClick
+              >
+                <ComboboxInputGroup>
+                  <ComboboxInput placeholder="Buscar serviço..." />
+                </ComboboxInputGroup>
+                <ComboboxContent>
+                  {(id: string) => (
+                    <ComboboxItem key={id} value={id}>{servicos.find(s => s.id === id)?.nome}</ComboboxItem>
+                  )}
+                </ComboboxContent>
+              </Combobox>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <Label>Data *</Label>
                 <Input
                   type="date"
                   value={form.data}
                   onChange={e => setForm(f => ({ ...f, data: e.target.value, hora: '' }))}
                   required
+                  className="h-8 w-auto text-xs"
                 />
-                {form.data && !diaFunciona(new Date(form.data + 'T00:00:00')) && (
-                  <p className="text-xs text-danger">Fechado aos domingos.</p>
-                )}
               </div>
-              <div className="space-y-2">
-                <Label>Horário *</Label>
-                <Select
-                  value={form.hora}
-                  onValueChange={v => setForm(f => ({ ...f, hora: v ?? '' }))}
-                  disabled={!form.servico_id || !form.data}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={!form.servico_id ? 'Escolha o serviço primeiro' : 'Selecione'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {horariosDoServico.length === 0 && form.data && form.servico_id && (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">Sem horário livre nesse dia pra esse serviço</div>
-                    )}
-                    {horariosDoServico.map(h => (
-                      <SelectItem key={h} value={h}>{h}</SelectItem>
-                    ))}
-                    {/* garante que o horário atual (edição) apareça mesmo se não estiver mais "livre" */}
-                    {editando && form.hora && !horariosDoServico.includes(form.hora) && (
-                      <SelectItem value={form.hora}>{form.hora} (atual)</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+              {diasParaEscolher.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {diasParaEscolher.map(dia => {
+                    const valorDia = format(dia, 'yyyy-MM-dd')
+                    const selecionado = form.data === valorDia
+                    const fechado = !diaFunciona(dia)
+                    const livre = !fechado && horariosLivresNoDia(dia)
+                    return (
+                      <button
+                        key={valorDia}
+                        type="button"
+                        disabled={fechado}
+                        onClick={() => setForm(f => ({ ...f, data: valorDia, hora: '' }))}
+                        className={`flex shrink-0 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-1.5 text-center transition-colors
+                          ${selecionado ? 'border-primary bg-primary text-primary-foreground' : fechado ? 'border-transparent text-muted-foreground/40' : livre ? 'border-brand-border bg-brand-card hover:border-primary' : 'border-brand-border bg-muted text-muted-foreground'}
+                        `}
+                      >
+                        <span className="text-[10px] uppercase">{format(dia, 'EEEEEE', { locale: ptBR })}</span>
+                        <span className="text-sm font-semibold">{format(dia, 'd')}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {form.data && !diaFunciona(new Date(form.data + 'T00:00:00')) && (
+                <p className="text-xs text-danger">Fechado aos domingos.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Horário *</Label>
+              {!form.servico_id || !form.data ? (
+                <p className="text-xs text-muted-foreground">Escolha o serviço e a data primeiro.</p>
+              ) : horariosDoServico.length === 0 && !(editando && form.hora) ? (
+                <p className="text-xs text-danger">Sem horário livre nesse dia pra esse serviço — tenta outro dia na tira acima.</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {horariosDoServico.map(h => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, hora: h }))}
+                      className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.hora === h ? 'border-primary bg-primary text-primary-foreground' : 'border-brand-border bg-brand-card hover:border-primary'}`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                  {/* garante que o horário atual (edição) apareça mesmo se não estiver mais "livre" */}
+                  {editando && form.hora && !horariosDoServico.includes(form.hora) && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, hora: form.hora }))}
+                      className="rounded-lg border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                    >
+                      {form.hora} (atual)
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             {form.servico_id && (
               <p className="text-xs text-muted-foreground -mt-1">
