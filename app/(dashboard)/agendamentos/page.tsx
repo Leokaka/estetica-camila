@@ -31,11 +31,17 @@ const EMPTY_FORM = {
   local: 'quartinho', valor_cobrado: '', observacoes: ''
 }
 
-// Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada)
+// Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
+// Vale só pra atendimentos com data até PROMO_FIM (combinado com a Camila) —
+// não é sobre quando a promo é aplicada, é sobre a data do procedimento em si.
 const PROMO_ATIVA = true
+const PROMO_FIM = '2026-08-31'
 const PROMO_LABEL = '15% de inauguração'
 function precoPromo(preco: number) {
   return Math.floor(preco * 0.85)
+}
+function promoValidaPara(data: string) {
+  return !data || data <= PROMO_FIM
 }
 
 type AcaoTipo = 'realizado' | 'cancelar' | 'excluir'
@@ -167,6 +173,21 @@ export default function AgendamentosPage() {
       const base = Number(svc.preco)
       setForm(f => ({ ...f, valor_cobrado: String(checked ? precoPromo(base) : base) }))
     }
+  }
+
+  // Troca a data do agendamento e, se a nova data já passou da validade da
+  // promoção, desliga o desconto sozinho e volta o valor pro preço cheio.
+  function selecionarData(novaData: string) {
+    const aindaValida = promoValidaPara(novaData)
+    if (promo15 && !aindaValida) {
+      setPromo15(false)
+      toast.error(`A promoção de inauguração vale só até ${format(new Date(PROMO_FIM + 'T00:00:00'), 'dd/MM')}. Valor voltou pro preço cheio.`)
+    }
+    setForm(f => {
+      const svc = servicos.find(s => s.id === f.servico_id)
+      const valor = promo15 && !aindaValida && svc ? String(svc.preco) : f.valor_cobrado
+      return { ...f, data: novaData, hora: '', valor_cobrado: valor }
+    })
   }
 
   async function salvarNovaCliente() {
@@ -560,7 +581,7 @@ export default function AgendamentosPage() {
                 <Input
                   type="date"
                   value={form.data}
-                  onChange={e => setForm(f => ({ ...f, data: e.target.value, hora: '' }))}
+                  onChange={e => selecionarData(e.target.value)}
                   required
                   className="h-8 w-auto text-xs"
                 />
@@ -577,7 +598,7 @@ export default function AgendamentosPage() {
                         key={valorDia}
                         type="button"
                         disabled={fechado}
-                        onClick={() => setForm(f => ({ ...f, data: valorDia, hora: '' }))}
+                        onClick={() => selecionarData(valorDia)}
                         className={`flex shrink-0 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-1.5 text-center transition-colors
                           ${selecionado ? 'border-primary bg-primary text-primary-foreground' : fechado ? 'border-transparent text-muted-foreground/40' : livre ? 'border-brand-border bg-brand-card hover:border-primary' : 'border-brand-border bg-muted text-muted-foreground'}
                         `}
@@ -631,10 +652,16 @@ export default function AgendamentosPage() {
               </p>
             )}
             {PROMO_ATIVA && !editando && (
-              <label className="flex items-center gap-2 rounded-lg border border-brand-terra bg-brand-surface-warm p-3 text-sm font-medium text-brand-terra cursor-pointer">
-                <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-brand-terra" />
-                Aplicar {PROMO_LABEL} (15% OFF)
-              </label>
+              promoValidaPara(form.data) ? (
+                <label className="flex items-center gap-2 rounded-lg border border-brand-terra bg-brand-surface-warm p-3 text-sm font-medium text-brand-terra cursor-pointer">
+                  <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-brand-terra" />
+                  Aplicar {PROMO_LABEL} (15% OFF) · válida até {format(new Date(PROMO_FIM + 'T00:00:00'), 'dd/MM')}
+                </label>
+              ) : (
+                <p className="rounded-lg border border-brand-border bg-brand-surface p-3 text-xs text-muted-foreground">
+                  A promoção de inauguração vale só pra atendimentos até {format(new Date(PROMO_FIM + 'T00:00:00'), 'dd/MM')} — essa data já passou da validade.
+                </p>
+              )
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
