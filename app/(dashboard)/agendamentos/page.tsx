@@ -211,10 +211,12 @@ export default function AgendamentosPage() {
   }
 
   async function marcarRealizado(ag: Agendamento) {
+    const valor = formatCurrency(Number(ag.valor_cobrado))
+    if (!confirm(`Confirmar "${ag.cliente?.nome}" como realizado?\n\nIsso lança ${valor} automaticamente no Financeiro.`)) return
     const { error } = await supabase.from('agendamentos').update({ status: 'realizado' }).eq('id', ag.id)
     if (!error) {
       await registrarEntradaFinanceira(ag.id, { ...ag, data_hora: ag.data_hora })
-      toast.success('Atendimento marcado como realizado!')
+      toast.success(`Realizado! ${valor} lançado no financeiro.`)
       loadData()
     }
   }
