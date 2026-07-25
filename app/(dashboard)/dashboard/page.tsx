@@ -4,18 +4,19 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
-  DollarSign, Users, Calendar, TrendingUp, TrendingDown,
-  Gift, AlertCircle, Scissors
+  DollarSign, Users, TrendingUp, TrendingDown,
+  Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle,
 } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, subMonths, differenceInDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Agendamento, Cliente } from '@/types'
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
+import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
+import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
+import { toast } from 'sonner'
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -34,10 +35,6 @@ export default function DashboardPage() {
   const [aniversariantes, setAniversariantes] = useState<Cliente[]>([])
   const [clientesSemRetorno, setClientesSemRetorno] = useState<Cliente[]>([])
   const [chartData, setChartData] = useState<{ mes: string; faturamento: number }[]>([])
-
-  useEffect(() => {
-    loadDashboard()
-  }, [])
 
   async function loadDashboard() {
     setLoading(true)
@@ -131,6 +128,17 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
+  useEffect(() => {
+    loadDashboard()
+  }, [])
+
+  async function confirmarAgendamento(id: string) {
+    const { error } = await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', id)
+    if (error) { toast.error('Erro ao confirmar agendamento'); return }
+    setProximosAgendamentos(ags => ags.map(a => a.id === id ? { ...a, status: 'confirmado' } : a))
+    toast.success('Agendamento confirmado!')
+  }
+
   const variacaoFaturamento = stats.faturamento_mes_anterior > 0
     ? ((stats.faturamento_mes - stats.faturamento_mes_anterior) / stats.faturamento_mes_anterior * 100).toFixed(1)
     : null
@@ -138,7 +146,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-[#8A7160]">Carregando...</div>
+        <div className="text-muted-foreground">Carregando...</div>
       </div>
     )
   }
@@ -146,21 +154,86 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Dashboard</h1>
-        <p className="text-[#8A7160]">{format(new Date(), "MMMM 'de' yyyy", { locale: ptBR })}</p>
+        <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Olá, Camila</h1>
+        <p className="text-muted-foreground capitalize">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
       </div>
+
+      {/* Central do dia — o que precisa de ação agora */}
+      <Card className="border-brand-gold/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarCheck className="h-4 w-4 text-brand-medium" />
+            Próximos Atendimentos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {proximosAgendamentos.length === 0 ? (
+            <p className="text-sm text-brand-muted-soft text-center py-6">Nenhum agendamento próximo</p>
+          ) : (
+            <div className="space-y-2">
+              {proximosAgendamentos.map((ag: any) => {
+                const dt = new Date(ag.data_hora)
+                const hojeAg = isToday(dt)
+                return (
+                  <div key={ag.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-brand-border bg-brand-surface p-3">
+                    <div className="flex shrink-0 flex-col items-center justify-center rounded-lg border border-brand-border bg-card px-3 py-1.5 text-center">
+                      <span className="text-[10px] font-medium tracking-wide text-brand-muted">
+                        {hojeAg ? 'HOJE' : format(dt, 'dd/MM')}
+                      </span>
+                      <span className="font-heading text-base font-semibold text-brand-dark">{format(dt, 'HH:mm')}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="truncate text-sm font-medium text-brand-dark">{ag.cliente?.nome}</p>
+                        <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]} className="shrink-0">
+                          {STATUS_LABELS[ag.status as Agendamento['status']]}
+                        </Badge>
+                      </div>
+                      <p className="truncate text-xs text-brand-muted">{ag.servico?.nome}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      {ag.status === 'agendado' && (
+                        <Button
+                          size="sm" variant="outline"
+                          className="h-7 gap-1 px-2 text-xs text-success"
+                          onClick={() => confirmarAgendamento(ag.id)}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar
+                        </Button>
+                      )}
+                      {ag.cliente?.telefone && (
+                        <Button
+                          size="icon-sm" variant="outline" className="text-success"
+                          title="Enviar confirmação no WhatsApp"
+                          onClick={() => window.open(
+                            linkWhatsApp(
+                              ag.cliente.telefone,
+                              mensagemConfirmacao(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', dt, Number(ag.valor_cobrado), false)
+                            ), '_blank')}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Cards de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-[#5E4433]">Faturamento do Mês</CardTitle>
-            <DollarSign className="h-5 w-5 text-[#7A5C4A]" />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Faturamento do Mês</CardTitle>
+            <DollarSign className="h-5 w-5 text-brand-medium" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.faturamento_mes)}</p>
+            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.faturamento_mes)}</p>
             {variacaoFaturamento && (
-              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoFaturamento) >= 0 ? 'text-[#4F7A54]' : 'text-[#B5493A]'}`}>
+              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoFaturamento) >= 0 ? 'text-success' : 'text-danger'}`}>
                 {Number(variacaoFaturamento) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {variacaoFaturamento}% vs mês anterior
               </p>
@@ -170,39 +243,39 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-[#5E4433]">Lucro do Mês</CardTitle>
-            <TrendingUp className="h-5 w-5 text-[#7A9B76]" />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Lucro do Mês</CardTitle>
+            <TrendingUp className="h-5 w-5 text-success" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.lucro_mes)}</p>
-            <p className="text-xs mt-1 text-[#8A7160]">Despesas: {formatCurrency(stats.despesas_mes)}</p>
+            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.lucro_mes)}</p>
+            <p className="text-xs mt-1 text-muted-foreground">Despesas: {formatCurrency(stats.despesas_mes)}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-[#5E4433]">Total de Clientes</CardTitle>
-            <Users className="h-5 w-5 text-[#7A5C4A]" />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Total de Clientes</CardTitle>
+            <Users className="h-5 w-5 text-brand-medium" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-[#2E2015]">{stats.total_clientes}</p>
-            <p className="text-xs mt-1 text-[#7A9B76]">+{stats.novos_clientes_mes} novas este mês</p>
+            <p className="text-2xl font-bold text-brand-dark">{stats.total_clientes}</p>
+            <p className="text-xs mt-1 text-success">+{stats.novos_clientes_mes} novas este mês</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-[#5E4433]">Ticket Médio</CardTitle>
-            <Scissors className="h-5 w-5 text-[#C9A96E]" />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Ticket Médio</CardTitle>
+            <Scissors className="h-5 w-5 text-brand-gold" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-[#2E2015]">{formatCurrency(stats.ticket_medio)}</p>
-            <p className="text-xs mt-1 text-[#8A7160]">{stats.agendamentos_mes} atendimentos no mês</p>
+            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.ticket_medio)}</p>
+            <p className="text-xs mt-1 text-muted-foreground">{stats.agendamentos_mes} atendimentos no mês</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Gráfico e próximos agendamentos */}
+      {/* Gráfico e alertas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -224,56 +297,22 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-[#7A5C4A]" />
-              Próximos Agendamentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {proximosAgendamentos.length === 0 ? (
-              <p className="text-sm text-[#A8927E] text-center py-4">Nenhum agendamento próximo</p>
-            ) : (
-              <div className="space-y-3">
-                {proximosAgendamentos.map((ag: any) => (
-                  <div key={ag.id} className="flex items-start gap-3 p-2.5 rounded-lg bg-[#F8F3EB]">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#2E2015] truncate">{ag.cliente?.nome}</p>
-                      <p className="text-xs text-[#8A7160] truncate">{ag.servico?.nome}</p>
-                      <p className="text-xs text-[#7A5C4A] font-medium">
-                        {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
-                      </p>
-                    </div>
-                    <Badge variant={ag.status === 'confirmado' ? 'default' : 'outline'} className="text-xs shrink-0">
-                      {ag.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Alertas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Gift className="h-4 w-4 text-[#8A7160]" />
+              <Gift className="h-4 w-4 text-brand-muted" />
               Aniversariantes do Mês
             </CardTitle>
           </CardHeader>
           <CardContent>
             {aniversariantes.length === 0 ? (
-              <p className="text-sm text-[#A8927E] text-center py-4">Nenhum aniversariante este mês</p>
+              <p className="text-sm text-brand-muted-soft text-center py-4">Nenhum aniversariante este mês</p>
             ) : (
               <div className="space-y-2">
                 {aniversariantes.map((c: any) => (
-                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-[#F8F3EB]">
+                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-brand-surface">
                     <div>
-                      <p className="text-sm font-medium text-[#2E2015]">{c.nome}</p>
-                      <p className="text-xs text-[#8A7160]">{c.telefone}</p>
+                      <p className="text-sm font-medium text-brand-dark">{c.nome}</p>
+                      <p className="text-xs text-brand-muted">{c.telefone}</p>
                     </div>
-                    <span className="text-xs text-[#7A5C4A] font-medium">
+                    <span className="text-xs text-brand-medium font-medium">
                       {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM')}
                     </span>
                   </div>
@@ -282,43 +321,43 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-[#C4856A]" />
-              Clientes sem Retorno (+60 dias)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {clientesSemRetorno.length === 0 ? (
-              <p className="text-sm text-[#A8927E] text-center py-4">Todas as clientes retornaram recentemente</p>
-            ) : (
-              <div className="space-y-2">
-                {clientesSemRetorno.map((c: any) => {
-                  const ultimoAg = c.agendamentos?.sort((a: any, b: any) =>
-                    new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()
-                  )[0]
-                  const diasSemRetorno = ultimoAg
-                    ? differenceInDays(new Date(), new Date(ultimoAg.data_hora))
-                    : null
-                  return (
-                    <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-[#FBF0EA]">
-                      <div>
-                        <p className="text-sm font-medium text-[#2E2015]">{c.nome}</p>
-                        <p className="text-xs text-[#8A7160]">{c.telefone}</p>
-                      </div>
-                      {diasSemRetorno && (
-                        <span className="text-xs text-[#C4856A] font-medium">{diasSemRetorno}d atrás</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-brand-terra" />
+            Clientes sem Retorno (+60 dias)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {clientesSemRetorno.length === 0 ? (
+            <p className="text-sm text-brand-muted-soft text-center py-4">Todas as clientes retornaram recentemente</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {clientesSemRetorno.map((c: any) => {
+                const ultimoAg = c.agendamentos?.sort((a: any, b: any) =>
+                  new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()
+                )[0]
+                const diasSemRetorno = ultimoAg
+                  ? differenceInDays(new Date(), new Date(ultimoAg.data_hora))
+                  : null
+                return (
+                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-brand-surface-warm">
+                    <div>
+                      <p className="text-sm font-medium text-brand-dark">{c.nome}</p>
+                      <p className="text-xs text-brand-muted">{c.telefone}</p>
+                    </div>
+                    {diasSemRetorno && (
+                      <span className="text-xs text-brand-terra font-medium">{diasSemRetorno}d atrás</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

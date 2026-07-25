@@ -1,5 +1,46 @@
 # Roadmap — Camila Garcia Estética (sistema)
 
+## 🎯 BRIEFING DO REBUILD (ler primeiro, sessão dedicada)
+
+**Autorização**: Léo confirmou (jul/2026) que todo o dado hoje no app (clientes Naara, Veronica,
+Giovana, Rafa e os agendamentos ligados a eles) é só teste — Camila ainda não usou o sistema pra
+valer. Agora que ela tem espaço físico próprio, vai usar de verdade. **Isso libera refazer telas
+e estrutura sem medo de perder dado real.** Script pronto pra zerar clientes/agendamentos/lançamentos
+de teste (mantém `servicos`, que é catálogo real): `limpar-testes.ps1` — ficou bloqueado pelo
+classificador de segurança do Claude Code por ser delete em massa via service role; Léo pode rodar
+ele mesmo quando quiser (está no scratchpad da sessão, ou peça pra eu regerar).
+
+**Ângulo estratégico novo**: Camila estuda estética e pode trazer colegas de turma como futuras
+clientes/usuárias. Ou seja, o sistema não é só "serve pra Camila" — é uma vitrine que pode virar
+negócio pro Léo (outras esteticistas vendo o sistema da colega e querendo o mesmo). Isso eleva a
+régua de qualidade: não basta funcionar, tem que impressionar quem já usa sistema profissional
+(Trinks etc.) no dia a dia.
+
+**O que NÃO pode quebrar** (lógica testada e funcionando, preservar):
+- `proxy.ts` + páginas de auth (`login`, `esqueci-senha`, `redefinir-senha`) — fluxo de recuperação
+  de senha via hash fragment do Supabase, já debugado a fundo
+- `lib/agenda.ts` (motor de disponibilidade: Seg-Sáb 9h-18h, almoço 13h-14h, grade 15min) e sua
+  integração em `agendamentos/page.tsx` — verificado ao vivo, respeita conflito de horário
+- Schema do Supabase (`clientes`, `servicos`, `agendamentos`, `lancamentos`) e RLS — o catálogo de
+  `servicos` já foi corrigido/reativado, não mexer sem necessidade
+
+**O que É pra questionar e redesenhar livremente**:
+- Se o padrão "admin dashboard genérico" (sidebar + tabelas) é mesmo o certo pra uma esteticista
+  solo checando o celular entre uma cliente e outra — talvez o fluxo do dia (próximos atendimentos,
+  ação rápida de confirmar/WhatsApp) devesse ser o centro, não uma tabela
+- Estrutura visual de cada página (`dashboard`, `clientes`, `agendamentos`, `servicos`, `financeiro`)
+  além do que já foi feito (cores de marca, Playfair nos títulos, Button/Input/Select elevados)
+- Referência de qualidade: projeto "Ateliê da Tatinha" do Léo — foi de MVP genérico pra algo com
+  cara de identidade própria do negócio
+
+**Pendente de confirmar com a Camila**: horário exato do almoço (assumi 13h-14h a partir de "a
+partir da 1:00", nunca confirmado explicitamente).
+
+**Adiado, não é pra essa sessão**: agendamento self-service público pra cliente (motor já existe
+em `lib/agenda.ts`, só falta expor sem autenticação) — Léo pediu explicitamente pra deixar pra depois.
+
+---
+
 > Pesquisa de mercado (jul/2026) confirmou o que falta pra ficar no nível dos sistemas de
 > clínica de estética profissionais (tipo Trinks). Ordem de prioridade abaixo.
 

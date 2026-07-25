@@ -7,23 +7,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, Calendar, MessageCircle, UserPlus } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados } from '@/lib/agenda'
-
-const STATUS_COLORS: Record<string, string> = {
-  agendado: 'bg-blue-100 text-[#8A6A2E]',
-  confirmado: 'bg-green-100 text-[#4F7A54]',
-  realizado: 'bg-gray-100 text-gray-700',
-  cancelado: 'bg-red-100 text-red-700',
-}
+import { formatCurrency } from '@/lib/format'
+import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
+import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
 
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
@@ -37,23 +37,7 @@ function precoPromo(preco: number) {
   return Math.floor(preco * 0.85)
 }
 
-const ENDERECO = 'Rua São Teodoro, 833 · Vila Carmosina (2º andar)'
-
-function mensagemConfirmacao(nome: string, servico: string, dataHora: Date, valor: number, promo: boolean) {
-  const data = format(dataHora, 'dd/MM/yyyy')
-  const hora = format(dataHora, 'HH:mm')
-  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeu agendamento está confirmado:\n✨ ${servico}\n📅 ${data} às ${hora}\n💰 R$ ${valor}${promo ? ` (com ${PROMO_LABEL})` : ''}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
-}
-
-function linkWhatsApp(telefone: string, texto: string) {
-  const d = telefone.replace(/\D/g, '')
-  const num = d.length <= 11 ? `55${d}` : d
-  return `https://wa.me/${num}?text=${encodeURIComponent(texto)}`
-}
-
-function formatCurrency(v: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-}
+type AcaoTipo = 'realizado' | 'cancelar' | 'excluir'
 
 export default function AgendamentosPage() {
   const supabase = createClient()
@@ -71,6 +55,7 @@ export default function AgendamentosPage() {
   const [promo15, setPromo15] = useState(false)
   const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string } | null>(null)
   const [salvandoCliente, setSalvandoCliente] = useState(false)
+  const [acao, setAcao] = useState<{ tipo: AcaoTipo; ag: Agendamento } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -229,29 +214,29 @@ export default function AgendamentosPage() {
     })
   }
 
-  async function marcarRealizado(ag: Agendamento) {
-    const valor = formatCurrency(Number(ag.valor_cobrado))
-    if (!confirm(`Confirmar "${ag.cliente?.nome}" como realizado?\n\nIsso lança ${valor} automaticamente no Financeiro.`)) return
-    const { error } = await supabase.from('agendamentos').update({ status: 'realizado' }).eq('id', ag.id)
-    if (!error) {
-      await registrarEntradaFinanceira(ag.id, { ...ag, data_hora: ag.data_hora })
-      toast.success(`Realizado! ${valor} lançado no financeiro.`)
-      loadData()
+  async function confirmarAcao() {
+    if (!acao) return
+    const { tipo, ag } = acao
+
+    if (tipo === 'realizado') {
+      const { error } = await supabase.from('agendamentos').update({ status: 'realizado' }).eq('id', ag.id)
+      if (!error) {
+        await registrarEntradaFinanceira(ag.id, { ...ag, data_hora: ag.data_hora })
+        toast.success(`Realizado! ${formatCurrency(Number(ag.valor_cobrado))} lançado no financeiro.`)
+        loadData()
+      } else {
+        toast.error('Erro ao marcar como realizado')
+      }
+    } else if (tipo === 'cancelar') {
+      const { error } = await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', ag.id)
+      if (error) toast.error('Erro ao cancelar')
+      else { toast.success('Agendamento cancelado'); loadData() }
+    } else {
+      const { error } = await supabase.from('agendamentos').delete().eq('id', ag.id)
+      if (error) toast.error('Erro ao excluir')
+      else { toast.success('Agendamento excluído'); loadData() }
     }
-  }
-
-  async function cancelar(id: string) {
-    if (!confirm('Deseja cancelar este agendamento?')) return
-    const { error } = await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', id)
-    if (error) toast.error('Erro ao cancelar')
-    else { toast.success('Agendamento cancelado'); loadData() }
-  }
-
-  async function excluir(id: string) {
-    if (!confirm('Deseja excluir este agendamento?')) return
-    const { error } = await supabase.from('agendamentos').delete().eq('id', id)
-    if (error) toast.error('Erro ao excluir')
-    else { toast.success('Agendamento excluído'); loadData() }
+    setAcao(null)
   }
 
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mesAtual), end: endOfMonth(mesAtual) })
@@ -267,10 +252,10 @@ export default function AgendamentosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-semibold text-[#2E2015] tracking-wide">Agendamentos</h1>
-          <p className="text-[#8A7160]">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
+          <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Agendamentos</h1>
+          <p className="text-muted-foreground">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => abrirNovo()} className="bg-[#7A5C4A] hover:bg-[#5C3D20]">
+        <Button onClick={() => abrirNovo()}>
           <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
         </Button>
       </div>
@@ -283,15 +268,14 @@ export default function AgendamentosPage() {
 
         <TabsContent value="lista" className="space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {['todos', 'agendado', 'confirmado', 'realizado', 'cancelado'].map(s => (
+            {(['todos', 'agendado', 'confirmado', 'realizado', 'cancelado'] as const).map(s => (
               <Button
                 key={s}
                 size="sm"
                 variant={filtroStatus === s ? 'default' : 'outline'}
-                className={filtroStatus === s ? 'bg-[#7A5C4A] hover:bg-[#5C3D20]' : ''}
                 onClick={() => setFiltroStatus(s)}
               >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {s === 'todos' ? 'Todos' : STATUS_LABELS[s]}
               </Button>
             ))}
           </div>
@@ -307,35 +291,35 @@ export default function AgendamentosPage() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-[#A8927E]">Carregando...</div>
+            <div className="text-center py-12 text-brand-muted-soft">Carregando...</div>
           ) : agendamentosFiltrados.length === 0 ? (
-            <div className="text-center py-12 text-[#A8927E]">Nenhum agendamento neste mês</div>
+            <div className="text-center py-12 text-brand-muted-soft">Nenhum agendamento neste mês</div>
           ) : (
             <div className="space-y-2">
               {agendamentosFiltrados.map((ag: any) => (
-                <Card key={ag.id} className="hover:shadow-sm transition-shadow">
+                <Card key={ag.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="flex items-center gap-4 p-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="font-medium text-sm">{ag.cliente?.nome}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[ag.status]}`}>
-                          {ag.status}
-                        </span>
+                        <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]}>
+                          {STATUS_LABELS[ag.status as Agendamento['status']]}
+                        </Badge>
                       </div>
-                      <p className="text-sm text-[#8A7160] truncate">{ag.servico?.nome}</p>
-                      <p className="text-xs text-[#A8927E]">
+                      <p className="text-sm text-muted-foreground truncate">{ag.servico?.nome}</p>
+                      <p className="text-xs text-brand-muted-soft">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
-                          <Button size="sm" variant="outline" className="text-[#4F7A54] h-7 px-2 text-xs" onClick={() => marcarRealizado(ag)}>
+                          <Button size="sm" variant="outline" className="text-success h-7 px-2 text-xs" onClick={() => setAcao({ tipo: 'realizado', ag })}>
                             <CheckCircle className="h-3.5 w-3.5 mr-1" /> Realizado
                           </Button>
                         )}
                         {ag.cliente?.telefone && ag.status !== 'cancelado' && (
                           <Button
                             size="sm" variant="outline"
-                            className="text-[#4F7A54] h-7 px-2"
+                            className="text-success h-7 px-2"
                             title="Enviar confirmação no WhatsApp"
                             onClick={() => window.open(
                               linkWhatsApp(
@@ -347,20 +331,20 @@ export default function AgendamentosPage() {
                           </Button>
                         )}
                         {ag.status !== 'cancelado' && ag.status !== 'realizado' && (
-                          <Button size="sm" variant="outline" className="text-[#B5493A] h-7 px-2" onClick={() => cancelar(ag.id)} title="Cancelar">
+                          <Button size="sm" variant="outline" className="text-danger h-7 px-2" onClick={() => setAcao({ tipo: 'cancelar', ag })} title="Cancelar">
                             <XCircle className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => abrirEditar(ag)}>
                           <Edit className="h-3.5 w-3.5" />
                         </Button>
-                        <Button size="sm" variant="outline" className="text-[#B5493A] h-7 px-2" onClick={() => excluir(ag.id)}>
+                        <Button size="sm" variant="outline" className="text-danger h-7 px-2" onClick={() => setAcao({ tipo: 'excluir', ag })}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-semibold text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
+                      <p className="font-semibold text-primary">{formatCurrency(ag.valor_cobrado)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -383,7 +367,7 @@ export default function AgendamentosPage() {
 
             <div className="grid grid-cols-7 gap-1">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                <div key={d} className="text-center text-xs font-medium text-[#8A7160] py-2">{d}</div>
+                <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">{d}</div>
               ))}
               {Array.from({ length: diasDoMes[0].getDay() }).map((_, i) => (
                 <div key={`empty-${i}`} />
@@ -396,14 +380,14 @@ export default function AgendamentosPage() {
                   <button
                     key={dia.toISOString()}
                     onClick={() => setDiaSelecionado(selecionado ? null : dia)}
-                    className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-[60px] flex flex-col items-center gap-1
-                      ${hoje ? 'ring-2 ring-[#C9A96E]' : ''}
-                      ${selecionado ? 'bg-[#7A5C4A] text-white' : 'hover:bg-gray-100'}
+                    className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-15 flex flex-col items-center gap-1
+                      ${hoje ? 'ring-2 ring-brand-gold' : ''}
+                      ${selecionado ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}
                     `}
                   >
                     <span className="font-medium">{format(dia, 'd')}</span>
                     {agsNoDia.length > 0 && (
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-white text-[#7A5C4A]' : 'bg-[#EEE0D4] text-[#7A5C4A]'}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${selecionado ? 'bg-primary-foreground text-primary' : 'bg-accent text-primary'}`}>
                         {agsNoDia.length}
                       </span>
                     )}
@@ -417,25 +401,27 @@ export default function AgendamentosPage() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>{format(diaSelecionado, "dd 'de' MMMM", { locale: ptBR })}</span>
-                    <Button size="sm" className="bg-[#7A5C4A] hover:bg-[#5C3D20]" onClick={() => abrirNovo(diaSelecionado)}>
+                    <Button size="sm" onClick={() => abrirNovo(diaSelecionado)}>
                       <Plus className="h-3.5 w-3.5 mr-1" /> Agendar
                     </Button>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {agendamentosDoDia.length === 0 ? (
-                    <p className="text-sm text-[#A8927E] text-center py-4">Nenhum agendamento neste dia</p>
+                    <p className="text-sm text-brand-muted-soft text-center py-4">Nenhum agendamento neste dia</p>
                   ) : (
                     <div className="space-y-2">
                       {agendamentosDoDia.map((ag: any) => (
-                        <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border border-brand-border">
                           <div>
                             <p className="font-medium text-sm">{ag.cliente?.nome}</p>
-                            <p className="text-xs text-[#8A7160]">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
+                            <p className="text-xs text-muted-foreground">{ag.servico?.nome} · {format(new Date(ag.data_hora), 'HH:mm')}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-[#7A5C4A]">{formatCurrency(ag.valor_cobrado)}</p>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[ag.status]}`}>{ag.status}</span>
+                          <div className="text-right space-y-1">
+                            <p className="text-sm font-medium text-primary">{formatCurrency(ag.valor_cobrado)}</p>
+                            <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]}>
+                              {STATUS_LABELS[ag.status as Agendamento['status']]}
+                            </Badge>
                           </div>
                         </div>
                       ))}
@@ -460,13 +446,13 @@ export default function AgendamentosPage() {
                 <button
                   type="button"
                   onClick={() => setNovaCliente(nc => nc ? null : { nome: '', telefone: '' })}
-                  className="flex items-center gap-1 text-xs font-medium text-[#7A5C4A] hover:underline"
+                  className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                 >
                   <UserPlus className="h-3.5 w-3.5" /> {novaCliente ? 'Cancelar' : 'Nova cliente'}
                 </button>
               </div>
               {novaCliente ? (
-                <div className="space-y-2 rounded-lg border border-[#C9A96E] bg-[#FBF9F5] p-3">
+                <div className="space-y-2 rounded-lg border border-brand-gold bg-brand-card p-3">
                   <Input
                     placeholder="Nome da cliente"
                     value={novaCliente.nome}
@@ -478,7 +464,7 @@ export default function AgendamentosPage() {
                     value={novaCliente.telefone}
                     onChange={e => setNovaCliente(nc => nc && ({ ...nc, telefone: e.target.value }))}
                   />
-                  <Button type="button" size="sm" className="w-full bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvandoCliente} onClick={salvarNovaCliente}>
+                  <Button type="button" size="sm" className="w-full" disabled={salvandoCliente} onClick={salvarNovaCliente}>
                     {salvandoCliente ? 'Cadastrando...' : 'Cadastrar e selecionar'}
                   </Button>
                 </div>
@@ -486,7 +472,7 @@ export default function AgendamentosPage() {
                 <Select value={form.cliente_id} onValueChange={v => setForm(f => ({ ...f, cliente_id: v ?? '' }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a cliente">
-                      {(v: string) => clientes.find(c => c.id === v)?.nome ?? 'Selecione a cliente'}
+                      {clientes.find(c => c.id === form.cliente_id)?.nome}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -500,7 +486,7 @@ export default function AgendamentosPage() {
               <Select value={form.servico_id} onValueChange={onSelectServico}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o serviço">
-                    {(v: string) => servicos.find(s => s.id === v)?.nome ?? 'Selecione o serviço'}
+                    {servicos.find(s => s.id === form.servico_id)?.nome}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -518,7 +504,7 @@ export default function AgendamentosPage() {
                   required
                 />
                 {form.data && !diaFunciona(new Date(form.data + 'T00:00:00')) && (
-                  <p className="text-xs text-[#B5493A]">Fechado aos domingos.</p>
+                  <p className="text-xs text-danger">Fechado aos domingos.</p>
                 )}
               </div>
               <div className="space-y-2">
@@ -533,7 +519,7 @@ export default function AgendamentosPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {horariosDoServico.length === 0 && form.data && form.servico_id && (
-                      <div className="px-3 py-2 text-xs text-[#8A7160]">Sem horário livre nesse dia pra esse serviço</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground">Sem horário livre nesse dia pra esse serviço</div>
                     )}
                     {horariosDoServico.map(h => (
                       <SelectItem key={h} value={h}>{h}</SelectItem>
@@ -547,13 +533,13 @@ export default function AgendamentosPage() {
               </div>
             </div>
             {form.servico_id && (
-              <p className="text-xs text-[#8A7160] -mt-1">
+              <p className="text-xs text-muted-foreground -mt-1">
                 Duração: {servicoEscolhido?.duracao_minutos ?? 60} min · almoço 13h–14h já é descontado
               </p>
             )}
             {PROMO_ATIVA && !editando && (
-              <label className="flex items-center gap-2 rounded-lg border border-[#C4856A] bg-[#FBF3EE] p-3 text-sm font-medium text-[#C4856A] cursor-pointer">
-                <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-[#C4856A]" />
+              <label className="flex items-center gap-2 rounded-lg border border-brand-terra bg-brand-surface-warm p-3 text-sm font-medium text-brand-terra cursor-pointer">
+                <input type="checkbox" checked={promo15} onChange={e => togglePromo(e.target.checked)} className="accent-brand-terra" />
                 Aplicar {PROMO_LABEL} (15% OFF)
               </label>
             )}
@@ -567,14 +553,13 @@ export default function AgendamentosPage() {
                 <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v ?? f.status }))}>
                   <SelectTrigger>
                     <SelectValue>
-                      {(v: string) => ({ agendado: 'Agendado', confirmado: 'Confirmado', realizado: 'Realizado', cancelado: 'Cancelado' } as Record<string, string>)[v] ?? v}
+                      {STATUS_LABELS[form.status as Agendamento['status']]}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agendado">Agendado</SelectItem>
-                    <SelectItem value="confirmado">Confirmado</SelectItem>
-                    <SelectItem value="realizado">Realizado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    {(['agendado', 'confirmado', 'realizado', 'cancelado'] as const).map(s => (
+                      <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -585,13 +570,39 @@ export default function AgendamentosPage() {
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1 bg-[#7A5C4A] hover:bg-[#5C3D20]" disabled={salvando || !form.cliente_id || !form.servico_id || !form.data || !form.hora}>
+              <Button type="submit" className="flex-1" disabled={salvando || !form.cliente_id || !form.servico_id || !form.data || !form.hora}>
                 {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Agendar'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!acao} onOpenChange={(open) => !open && setAcao(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {acao?.tipo === 'realizado' && `Marcar "${acao.ag.cliente?.nome}" como realizado?`}
+              {acao?.tipo === 'cancelar' && 'Cancelar agendamento?'}
+              {acao?.tipo === 'excluir' && 'Excluir agendamento?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {acao?.tipo === 'realizado' && `Isso lança ${formatCurrency(Number(acao.ag.valor_cobrado))} automaticamente no Financeiro.`}
+              {acao?.tipo === 'cancelar' && 'O horário volta a ficar disponível pra outra cliente.'}
+              {acao?.tipo === 'excluir' && 'Essa ação remove o registro e não pode ser desfeita.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              variant={acao?.tipo === 'realizado' ? 'default' : 'destructive'}
+              onClick={confirmarAcao}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

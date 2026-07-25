@@ -26,16 +26,14 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
-
-  useEffect(() => {
-    if (searchParams.get('erro') === 'link_invalido') {
-      setError('Esse link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".')
-    }
-  }, [searchParams])
+  const [error, setError] = useState(() =>
+    searchParams.get('erro') === 'link_invalido'
+      ? 'Esse link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".'
+      : ''
+  )
 
   // Link de recuperação de senha do Supabase chega como #access_token=...&type=recovery
   // direto nessa página (fragmento de URL, não dá pra tratar no servidor). O client
@@ -66,20 +64,20 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#F5F0EA]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <Image src="/logo/selo-cg.png" alt="CG" width={110} height={110} priority className="mb-3" />
           <h1
-            className="text-3xl text-[#5E4433] tracking-[0.08em]"
+            className="text-3xl text-brand-text-soft tracking-[0.08em]"
             style={{ fontFamily: 'var(--font-playfair), serif', fontWeight: 600 }}
           >
             CAMILA GARCIA
           </h1>
-          <p className="mt-1 text-xs tracking-[0.4em] text-[#C9A96E] font-medium">ESTÉTICA</p>
+          <p className="mt-1 text-xs tracking-[0.4em] text-brand-gold font-medium">ESTÉTICA</p>
         </div>
 
-        <Card className="shadow-xl bg-[#FBF9F5] border border-[#E8DFD2]">
+        <Card className="shadow-xl">
           <CardHeader>
             <CardTitle className="text-xl">Entrar</CardTitle>
             <CardDescription>Acesse sua conta para continuar</CardDescription>
@@ -101,7 +99,7 @@ function LoginForm() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Senha</Label>
-                  <Link href="/esqueci-senha" className="text-xs text-[#7A5C4A] hover:underline">
+                  <Link href="/esqueci-senha" className="text-xs text-primary hover:underline">
                     Esqueci minha senha
                   </Link>
                 </div>
@@ -117,7 +115,7 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted-soft hover:text-brand-text-soft"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -125,12 +123,12 @@ function LoginForm() {
               </div>
 
               {error && (
-                <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                <div className="rounded-md bg-danger-soft border border-danger/20 p-3 text-sm text-danger">
                   {error}
                 </div>
               )}
 
-              <Button type="submit" className="w-full bg-[#5E4433] text-[#F5F0EA] hover:bg-[#7A5C4A]" disabled={loading}>
+              <Button type="submit" className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary" disabled={loading}>
                 {loading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>

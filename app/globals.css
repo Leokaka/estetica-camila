@@ -39,6 +39,28 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-card: var(--brand-card);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-medium: var(--brand-medium);
+  --color-brand-medium-hover: var(--brand-medium-hover);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-terra: var(--brand-terra);
+  --color-brand-text: var(--brand-text);
+  --color-brand-text-soft: var(--brand-text-soft);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-muted-soft: var(--brand-muted-soft);
+  --color-brand-border: var(--brand-border);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-warm: var(--brand-surface-warm);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -54,11 +76,27 @@
   --brand-card: #FBF9F5;
   --brand-dark: #2E2015;     /* ink */
   --brand-medium: #7A5C4A;   /* cacau */
+  --brand-medium-hover: #5C3D20;
   --brand-gold: #C9A96E;     /* dourado */
   --brand-terra: #C4856A;    /* terracota — destaque pontual */
   --brand-text: #2E2015;
+  --brand-text-soft: #5E4433;
   --brand-muted: #8A7160;
+  --brand-muted-soft: #A8927E;
   --brand-border: #E8DFD2;
+  --brand-surface: #F8F3EB;   /* fundo de item dentro de card (linha de lista) */
+  --brand-surface-warm: #FBF0EA;
+
+  /* Cores semânticas — pares fundo-suave/texto, reusadas em badges de status,
+     alertas financeiros e indicadores de lucro/prejuízo em vez de hex soltos por página */
+  --success: #4F7A54;
+  --success-soft: #EEF3EA;
+  --danger: #B5493A;
+  --danger-soft: #FBEEEA;
+  --warning: #8A6A2E;
+  --warning-soft: #F6EFE0;
+  --info: #7A5C4A;
+  --info-soft: #EEE0D4;
 
   --background: #F5F0EA;
   --foreground: #2E2015;

@@ -65,20 +65,20 @@ export default function RedefinirSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#F5F0EA]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <Image src="/logo/selo-cg.png" alt="CG" width={110} height={110} priority className="mb-3" />
           <h1
-            className="text-3xl text-[#5E4433] tracking-[0.08em]"
+            className="text-3xl text-brand-text-soft tracking-[0.08em]"
             style={{ fontFamily: 'var(--font-playfair), serif', fontWeight: 600 }}
           >
             CAMILA GARCIA
           </h1>
-          <p className="mt-1 text-xs tracking-[0.4em] text-[#C9A96E] font-medium">ESTÉTICA</p>
+          <p className="mt-1 text-xs tracking-[0.4em] text-brand-gold font-medium">ESTÉTICA</p>
         </div>
 
-        <Card className="shadow-xl bg-[#FBF9F5] border border-[#E8DFD2]">
+        <Card className="shadow-xl">
           <CardHeader>
             <CardTitle className="text-xl">Nova senha</CardTitle>
             <CardDescription>
@@ -93,11 +93,11 @@ export default function RedefinirSenhaPage() {
           </CardHeader>
           {pronto && semSessao && (
             <CardContent>
-              <p className="text-sm text-[#8A7160] mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Esse link expirou, já foi usado, ou você abriu essa página direto. Peça um novo link.
               </p>
               <Link href="/esqueci-senha">
-                <Button className="w-full bg-[#5E4433] text-[#F5F0EA] hover:bg-[#7A5C4A]">
+                <Button className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary">
                   Pedir novo link
                 </Button>
               </Link>
@@ -120,7 +120,7 @@ export default function RedefinirSenhaPage() {
                     <button
                       type="button"
                       onClick={() => setMostrar(!mostrar)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted-soft hover:text-brand-text-soft"
                     >
                       {mostrar ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -140,12 +140,12 @@ export default function RedefinirSenhaPage() {
                 </div>
 
                 {erro && (
-                  <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                  <div className="rounded-md bg-danger-soft border border-danger/20 p-3 text-sm text-danger">
                     {erro}
                   </div>
                 )}
 
-                <Button type="submit" className="w-full bg-[#5E4433] text-[#F5F0EA] hover:bg-[#7A5C4A]" disabled={loading}>
+                <Button type="submit" className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary" disabled={loading}>
                   {loading ? 'Salvando...' : 'Salvar senha nova'}
                 </Button>
               </form>

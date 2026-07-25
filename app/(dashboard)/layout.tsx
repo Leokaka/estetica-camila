@@ -4,7 +4,7 @@ import { Toaster } from '@/components/ui/sonner'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#F5F0EA' }}>
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="relative flex-1 flex flex-col overflow-hidden">
         {/* marca d'água do monograma, sutil, fixa no canto — mesma linguagem do material de marketing */}
