@@ -117,7 +117,7 @@ export default function FinanceiroPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Financeiro</h1>
           <p className="text-muted-foreground">
@@ -126,7 +126,7 @@ export default function FinanceiroPage() {
               : format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => exportarCSV(

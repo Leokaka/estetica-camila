@@ -124,7 +124,7 @@ export default function ServicosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Serviços</h1>
           <p className="text-muted-foreground">{servicos.filter(s => s.ativo).length} serviços ativos</p>
