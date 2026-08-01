@@ -22,8 +22,9 @@ export default function DashboardPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
-    faturamento_mes: 0,
-    faturamento_mes_anterior: 0,
+    recebido_mes: 0,
+    recebido_mes_anterior: 0,
+    esperado_mes: 0,
     total_clientes: 0,
     novos_clientes_mes: 0,
     agendamentos_mes: 0,
@@ -54,9 +55,9 @@ export default function DashboardPage() {
       { data: todosClientes },
       { data: lancamentosChart },
     ] = await Promise.all([
-      supabase.from('agendamentos').select('valor_cobrado').eq('status', 'realizado')
+      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').neq('status', 'cancelado')
         .gte('data_hora', inicioMes.toISOString()).lte('data_hora', fimMes.toISOString()),
-      supabase.from('agendamentos').select('valor_cobrado').eq('status', 'realizado')
+      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').eq('status', 'realizado')
         .gte('data_hora', inicioMesAnterior.toISOString()).lte('data_hora', fimMesAnterior.toISOString()),
       supabase.from('clientes').select('id', { count: 'exact', head: true }),
       supabase.from('clientes').select('id', { count: 'exact', head: true })
@@ -72,20 +73,44 @@ export default function DashboardPage() {
         .lte('data', format(fimMes, 'yyyy-MM-dd')),
     ])
 
-    const faturamento = agendamentosMes?.reduce((s, a) => s + Number(a.valor_cobrado), 0) ?? 0
-    const faturamentoAnterior = agendamentosMesAnterior?.reduce((s, a) => s + Number(a.valor_cobrado), 0) ?? 0
+    // Recebido = dinheiro que já entrou de verdade (pago inteiro, ou a parte já paga de um parcial).
+    // Esperado = o que ainda falta entrar: agendamentos futuros (agendado/confirmado) + o saldo
+    // de atendimentos já realizados mas ainda não totalmente pagos.
+    function recebidoDe(ags: any[]) {
+      return ags?.reduce((s, a) => {
+        if (a.status !== 'realizado') return s
+        if (a.status_pagamento === 'pago') return s + Number(a.valor_cobrado)
+        if (a.status_pagamento === 'parcial') return s + Number(a.valor_pago ?? 0)
+        return s
+      }, 0) ?? 0
+    }
+    function esperadoDe(ags: any[]) {
+      return ags?.reduce((s, a) => {
+        if (a.status === 'agendado' || a.status === 'confirmado') return s + Number(a.valor_cobrado)
+        if (a.status === 'realizado' && a.status_pagamento !== 'pago') {
+          return s + (Number(a.valor_cobrado) - (a.status_pagamento === 'parcial' ? Number(a.valor_pago ?? 0) : 0))
+        }
+        return s
+      }, 0) ?? 0
+    }
+
+    const recebido = recebidoDe(agendamentosMes ?? [])
+    const recebidoAnterior = recebidoDe(agendamentosMesAnterior ?? [])
+    const esperado = esperadoDe(agendamentosMes ?? [])
     const totalDespesas = despesas?.reduce((s, l) => s + Number(l.valor), 0) ?? 0
-    const qtdAgendamentos = agendamentosMes?.length ?? 0
+    const realizadosMes = (agendamentosMes ?? []).filter((a: any) => a.status === 'realizado')
+    const valorRealizadosMes = realizadosMes.reduce((s, a) => s + Number(a.valor_cobrado), 0)
 
     setStats({
-      faturamento_mes: faturamento,
-      faturamento_mes_anterior: faturamentoAnterior,
+      recebido_mes: recebido,
+      recebido_mes_anterior: recebidoAnterior,
+      esperado_mes: esperado,
       total_clientes: (totalClientes as any)?.count ?? 0,
       novos_clientes_mes: (novosClientes as any)?.count ?? 0,
-      agendamentos_mes: qtdAgendamentos,
-      ticket_medio: qtdAgendamentos > 0 ? faturamento / qtdAgendamentos : 0,
+      agendamentos_mes: realizadosMes.length,
+      ticket_medio: realizadosMes.length > 0 ? valorRealizadosMes / realizadosMes.length : 0,
       despesas_mes: totalDespesas,
-      lucro_mes: faturamento - totalDespesas,
+      lucro_mes: recebido - totalDespesas,
     })
 
     setProximosAgendamentos((proximos as any) ?? [])
@@ -139,8 +164,8 @@ export default function DashboardPage() {
     toast.success('Agendamento confirmado!')
   }
 
-  const variacaoFaturamento = stats.faturamento_mes_anterior > 0
-    ? ((stats.faturamento_mes - stats.faturamento_mes_anterior) / stats.faturamento_mes_anterior * 100).toFixed(1)
+  const variacaoRecebido = stats.recebido_mes_anterior > 0
+    ? ((stats.recebido_mes - stats.recebido_mes_anterior) / stats.recebido_mes_anterior * 100).toFixed(1)
     : null
 
   if (loading) {
@@ -224,20 +249,33 @@ export default function DashboardPage() {
       </Card>
 
       {/* Cards de métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-brand-text-soft">Faturamento do Mês</CardTitle>
-            <DollarSign className="h-5 w-5 text-brand-medium" />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Recebido no Mês</CardTitle>
+            <DollarSign className="h-5 w-5 text-success" />
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.faturamento_mes)}</p>
-            {variacaoFaturamento && (
-              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoFaturamento) >= 0 ? 'text-success' : 'text-danger'}`}>
-                {Number(variacaoFaturamento) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {variacaoFaturamento}% vs mês anterior
+            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.recebido_mes)}</p>
+            {variacaoRecebido ? (
+              <p className={`text-xs mt-1 flex items-center gap-1 ${Number(variacaoRecebido) >= 0 ? 'text-success' : 'text-danger'}`}>
+                {Number(variacaoRecebido) >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {variacaoRecebido}% vs mês anterior
               </p>
+            ) : (
+              <p className="text-xs mt-1 text-muted-foreground">Dinheiro já confirmado</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-brand-text-soft">A Receber</CardTitle>
+            <DollarSign className="h-5 w-5 text-brand-gold" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.esperado_mes)}</p>
+            <p className="text-xs mt-1 text-muted-foreground">Agendado + saldo pendente</p>
           </CardContent>
         </Card>
 
@@ -279,7 +317,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Faturamento dos Últimos 6 Meses</CardTitle>
+            <CardTitle className="text-base">Entradas dos Últimos 6 Meses</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>

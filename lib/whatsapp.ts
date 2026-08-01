@@ -9,6 +9,11 @@ export function mensagemConfirmacao(nome: string, servico: string, dataHora: Dat
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeu agendamento está confirmado:\n✨ ${servico}\n📅 ${data} às ${hora}\n💰 R$ ${valor}${promo ? ` (com ${PROMO_LABEL})` : ''}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
 }
 
+/** Mensagem pós-atendimento, pra quando o agendamento já foi marcado como realizado. */
+export function mensagemAgradecimento(nome: string, servico: string) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar no meu trabalho hoje! Espero que tenha amado o resultado do seu ${servico} ✨\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
+}
+
 export function linkWhatsApp(telefone: string, texto: string) {
   const d = telefone.replace(/\D/g, '')
   const num = d.length <= 11 ? `55${d}` : d

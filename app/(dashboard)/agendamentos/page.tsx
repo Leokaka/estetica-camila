@@ -27,7 +27,7 @@ import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
   FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
 } from '@/lib/status'
-import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
+import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/whatsapp'
 
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
@@ -386,11 +386,13 @@ export default function AgendamentosPage() {
                           <Button
                             size="sm" variant="outline"
                             className="text-success h-7 px-2"
-                            title="Enviar confirmação no WhatsApp"
+                            title={ag.status === 'realizado' ? 'Enviar agradecimento no WhatsApp' : 'Enviar confirmação no WhatsApp'}
                             onClick={() => window.open(
                               linkWhatsApp(
                                 ag.cliente.telefone,
-                                mensagemConfirmacao(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', new Date(ag.data_hora), Number(ag.valor_cobrado), false)
+                                ag.status === 'realizado'
+                                  ? mensagemAgradecimento(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento')
+                                  : mensagemConfirmacao(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', new Date(ag.data_hora), Number(ag.valor_cobrado), false)
                               ), '_blank')}
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
