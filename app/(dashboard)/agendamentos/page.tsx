@@ -112,7 +112,7 @@ export default function AgendamentosPage() {
     setDialogOpen(true)
   }
 
-  // Horários possíveis pro serviço+data escolhidos, descontando almoço e conflitos.
+  // Horários possíveis pro serviço+data escolhidos, descontando conflitos existentes.
   // Ao editar, o próprio agendamento não conta como conflito consigo mesmo.
   const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
   const horariosDoServico = (() => {
@@ -622,7 +622,7 @@ export default function AgendamentosPage() {
               ) : horariosDoServico.length === 0 && !(editando && form.hora) ? (
                 <p className="text-xs text-danger">Sem horário livre nesse dia pra esse serviço — tenta outro dia na tira acima.</p>
               ) : (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-brand-border bg-brand-surface/50 p-2">
                   {horariosDoServico.map(h => (
                     <button
                       key={h}
@@ -648,7 +648,7 @@ export default function AgendamentosPage() {
             </div>
             {form.servico_id && (
               <p className="text-xs text-muted-foreground -mt-1">
-                Duração: {servicoEscolhido?.duracao_minutos ?? 60} min · almoço 13h–14h já é descontado
+                Duração: {servicoEscolhido?.duracao_minutos ?? 60} min
               </p>
             )}
             {PROMO_ATIVA && !editando && (

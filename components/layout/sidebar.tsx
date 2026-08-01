@@ -5,19 +5,21 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  Users, Calendar, Scissors,
+  LayoutDashboard, Users, Calendar, Scissors, DollarSign,
   LogOut, Menu, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
-// Dashboard e Financeiro tirados da navegação de propósito (inauguração 25/07/2026):
-// Camila usa o sistema com clientes por perto, número de faturamento/lucro/margem não pode
-// aparecer na tela. As rotas continuam existindo, só não tem link visível.
+// Dashboard e Financeiro tinham saído da navegação só pro dia da inauguração (25/07/2026),
+// pra não mostrar faturamento/lucro com cliente por perto — Camila pediu de volta o controle
+// financeiro pra rotina normal (fechar caixa, tirar retirada, pagar aluguel).
 const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/agendamentos', label: 'Agendamentos', icon: Calendar },
   { href: '/servicos', label: 'Serviços', icon: Scissors },
+  { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
 ]
 
 function NavContent({ onClose }: { onClose?: () => void }) {

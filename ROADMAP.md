@@ -82,9 +82,12 @@ em `lib/agenda.ts`, só falta expor sem autenticação) — Léo pediu explicita
 - https://www.belasis.com.br/melhor-gestao-controle-clinica-estetica-software-sistema-agenda-prontuario-estoque-financeiro-brasil/
 - https://agendiva.com.br/blog/software-de-gestao-para-clinica-de-estetica
 
-## 6. Horários de funcionamento (feito nessa sessão)
-- ✅ Motor de disponibilidade real (`lib/agenda.ts`): Seg-Sáb 9h-18h, almoço 13h-14h,
-  respeita a duração de cada serviço e não deixa marcar em cima de agendamento existente
+## 6. Horários de funcionamento
+- ✅ Motor de disponibilidade real (`lib/agenda.ts`): respeita a duração de cada serviço e
+  não deixa marcar em cima de agendamento existente
+- ⚠️ Atualizado em 25/07/2026: a grade fixa Seg-Sáb 9h-18h com almoço bloqueado (como estava
+  quando essa seção foi escrita) atrapalhava encaixe de horário na prática — Camila pediu de
+  volta a agenda livre (todos os dias, todos os horários). Só a checagem de conflito continua.
 - Base pronta pro agendamento self-service da cliente (item futuro) — é a mesma lógica,
   só falta expor via rota pública sem autenticação
 

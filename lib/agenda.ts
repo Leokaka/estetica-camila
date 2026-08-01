@@ -2,12 +2,16 @@
 // Usado hoje pelo agendamento interno; é a mesma base que vai alimentar o agendamento
 // self-service da cliente no futuro (ver ROADMAP.md).
 
+// Camila pediu de volta a agenda livre (25/07/2026) — a grade fixa Seg-Sáb 9h-18h com almoço
+// bloqueado atrapalhava encaixe de horário (ex: perto do meio-dia). Todos os dias e horários
+// ficam liberados; só a checagem de conflito (não deixar marcar em cima de outro agendamento)
+// continua valendo. almocoInicio === almocoFim desliga o bloqueio de almoço.
 export const HORARIO_FUNCIONAMENTO = {
-  diasFuncionamento: [1, 2, 3, 4, 5, 6] as number[], // 0=dom ... 6=sáb — fechado só domingo
-  abertura: '09:00',
-  fechamento: '18:00',
-  almocoInicio: '13:00',
-  almocoFim: '14:00',
+  diasFuncionamento: [0, 1, 2, 3, 4, 5, 6] as number[], // todos os dias, incl. domingo
+  abertura: '00:00',
+  fechamento: '23:59',
+  almocoInicio: '00:00',
+  almocoFim: '00:00', // igual ao início = sem bloqueio de almoço
   grade: 15, // minutos entre horários candidatos
 }
 
@@ -44,10 +48,11 @@ export function horariosDisponiveis(params: {
   const almocoIniMin = paraMinutos(almocoInicio)
   const almocoFimMin = paraMinutos(almocoFim)
 
+  const temAlmoco = almocoIniMin !== almocoFimMin
   const slots: string[] = []
   for (let inicio = aberturaMin; inicio + duracaoMinutos <= fechamentoMin; inicio += grade) {
     const fim = inicio + duracaoMinutos
-    const cruzaAlmoco = inicio < almocoFimMin && fim > almocoIniMin
+    const cruzaAlmoco = temAlmoco && inicio < almocoFimMin && fim > almocoIniMin
     if (cruzaAlmoco) continue
     const conflita = ocupados.some(o => inicio < o.fim && fim > o.inicio)
     if (conflita) continue
