@@ -14,10 +14,11 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, User } from 'lucide-react'
+import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, User, Download } from 'lucide-react'
 import { format, differenceInYears } from 'date-fns'
 import type { Cliente, Agendamento } from '@/types'
 import { formatCurrency } from '@/lib/format'
+import { exportarCSV } from '@/lib/csv'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
 
 const EMPTY_FORM = { nome: '', telefone: '', email: '', data_nascimento: '', observacoes: '' }
@@ -76,6 +77,12 @@ export default function ClientesPage() {
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
+    const telefoneNovo = form.telefone.replace(/\D/g, '')
+    const duplicada = clientes.find(c => c.id !== editando?.id && c.telefone.replace(/\D/g, '') === telefoneNovo)
+    if (duplicada) {
+      toast.error(`Esse WhatsApp já é da ${duplicada.nome} — confere se não é cadastro repetido.`)
+      return
+    }
     setSalvando(true)
     const payload = {
       nome: form.nome,
@@ -117,9 +124,23 @@ export default function ClientesPage() {
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Clientes</h1>
           <p className="text-muted-foreground">{clientes.length} clientes cadastradas</p>
         </div>
-        <Button onClick={abrirNovo}>
-          <Plus className="h-4 w-4 mr-2" /> Nova Cliente
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportarCSV(
+              `clientes-${format(new Date(), 'yyyy-MM-dd')}.csv`,
+              [
+                ['Nome', 'Telefone', 'Email', 'Data de Nascimento', 'Observações'],
+                ...clientesFiltrados.map(c => [c.nome, c.telefone, c.email ?? '', c.data_nascimento ?? '', c.observacoes ?? '']),
+              ]
+            )}
+          >
+            <Download className="h-4 w-4 mr-2" /> Exportar
+          </Button>
+          <Button onClick={abrirNovo}>
+            <Plus className="h-4 w-4 mr-2" /> Nova Cliente
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
@@ -203,24 +224,24 @@ export default function ClientesPage() {
           </DialogHeader>
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome *</Label>
-              <Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required />
+              <Label htmlFor="cliente-nome">Nome *</Label>
+              <Input id="cliente-nome" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Telefone / WhatsApp *</Label>
-              <Input value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} placeholder="(11) 99999-9999" required />
+              <Label htmlFor="cliente-telefone">Telefone / WhatsApp *</Label>
+              <Input id="cliente-telefone" value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} placeholder="(11) 99999-9999" required />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              <Label htmlFor="cliente-email">Email</Label>
+              <Input id="cliente-email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Data de Nascimento</Label>
-              <Input type="date" value={form.data_nascimento} onChange={e => setForm({ ...form, data_nascimento: e.target.value })} />
+              <Label htmlFor="cliente-nascimento">Data de Nascimento</Label>
+              <Input id="cliente-nascimento" type="date" value={form.data_nascimento} onChange={e => setForm({ ...form, data_nascimento: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Observações</Label>
-              <Textarea value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Alergias, preferências, observações..." rows={3} />
+              <Label htmlFor="cliente-obs">Observações</Label>
+              <Textarea id="cliente-obs" value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Alergias, preferências, observações..." rows={3} />
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>

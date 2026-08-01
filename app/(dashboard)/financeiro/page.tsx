@@ -14,12 +14,13 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, TrendingUp, DollarSign, Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { Plus, TrendingUp, DollarSign, Trash2, ArrowUpCircle, ArrowDownCircle, Download } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import type { Lancamento } from '@/types'
 import { formatCurrency } from '@/lib/format'
+import { exportarCSV } from '@/lib/csv'
 
 const CATEGORIAS_ENTRADA = ['Serviço', 'Produto', 'Outros']
 const CATEGORIAS_SAIDA = ['Produto/Material', 'Aluguel', 'Energia', 'Água', 'Internet', 'Marketing', 'Equipamento', 'Curso/Capacitação', 'Impostos', 'Outros']
@@ -118,9 +119,29 @@ export default function FinanceiroPage() {
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Financeiro</h1>
           <p className="text-muted-foreground">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setDialogOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" /> Novo Lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportarCSV(
+              `financeiro-${format(mesAtual, 'yyyy-MM')}.csv`,
+              [
+                ['Data', 'Tipo', 'Descrição', 'Categoria', 'Valor'],
+                ...lancamentosFiltrados.map(l => [
+                  format(new Date(l.data + 'T00:00:00'), 'dd/MM/yyyy'),
+                  l.tipo === 'entrada' ? 'Entrada' : 'Saída',
+                  l.descricao,
+                  l.categoria,
+                  Number(l.valor).toFixed(2).replace('.', ','),
+                ]),
+              ]
+            )}
+          >
+            <Download className="h-4 w-4 mr-2" /> Exportar
+          </Button>
+          <Button onClick={() => { setForm(EMPTY_FORM); setDialogOpen(true) }}>
+            <Plus className="h-4 w-4 mr-2" /> Novo Lançamento
+          </Button>
+        </div>
       </div>
 
       {/* Navegação de mês */}
@@ -309,23 +330,23 @@ export default function FinanceiroPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Descrição *</Label>
-              <Input value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} placeholder="Ex: Compra de produtos" required />
+              <Label htmlFor="lanc-descricao">Descrição *</Label>
+              <Input id="lanc-descricao" value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} placeholder="Ex: Compra de produtos" required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Valor (R$) *</Label>
-                <Input type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
+                <Label htmlFor="lanc-valor">Valor (R$) *</Label>
+                <Input id="lanc-valor" type="number" step="0.01" min="0" value={form.valor} onChange={e => setForm({ ...form, valor: e.target.value })} required />
               </div>
               <div className="space-y-2">
-                <Label>Data *</Label>
-                <Input type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })} required />
+                <Label htmlFor="lanc-data">Data *</Label>
+                <Input id="lanc-data" type="date" value={form.data} onChange={e => setForm({ ...form, data: e.target.value })} required />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Categoria *</Label>
+              <Label htmlFor="lanc-categoria">Categoria *</Label>
               <Select value={form.categoria} onValueChange={v => setForm({ ...form, categoria: v ?? form.categoria })}>
-                <SelectTrigger><SelectValue placeholder="Selecione a categoria">{form.categoria}</SelectValue></SelectTrigger>
+                <SelectTrigger id="lanc-categoria"><SelectValue placeholder="Selecione a categoria">{form.categoria}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {(form.tipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA).map(c => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>

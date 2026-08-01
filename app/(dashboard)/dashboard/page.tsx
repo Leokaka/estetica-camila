@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DollarSign, Users, TrendingUp, TrendingDown,
-  Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle,
+  Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle, CircleDollarSign,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -17,6 +17,18 @@ import { formatCurrency } from '@/lib/format'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
 import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
 import { toast } from 'sonner'
+
+function mensagemCobranca(nome: string, servico: string, valor: number) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando só pra lembrar do pagamento do ${servico} (${formatCurrency(valor)}) combinado. Qualquer coisa me chama por aqui 😊`
+}
+
+function mensagemAniversario(nome: string) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando pra desejar um feliz aniversário! 🎉 Espero que seu dia seja incrível. Um beijo!`
+}
+
+function mensagemSaudade(nome: string) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nFaz um tempo que a gente não se vê por aqui! Tô com saudade de cuidar de você — bora marcar um horário? 😊`
+}
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -35,6 +47,7 @@ export default function DashboardPage() {
   const [proximosAgendamentos, setProximosAgendamentos] = useState<Agendamento[]>([])
   const [aniversariantes, setAniversariantes] = useState<Cliente[]>([])
   const [clientesSemRetorno, setClientesSemRetorno] = useState<Cliente[]>([])
+  const [pagamentosAtrasados, setPagamentosAtrasados] = useState<Agendamento[]>([])
   const [chartData, setChartData] = useState<{ mes: string; faturamento: number }[]>([])
 
   async function loadDashboard() {
@@ -48,12 +61,13 @@ export default function DashboardPage() {
     const [
       { data: agendamentosMes },
       { data: agendamentosMesAnterior },
-      { data: totalClientes },
-      { data: novosClientes },
+      { count: totalClientesCount },
+      { count: novosClientesCount },
       { data: despesas },
       { data: proximos },
       { data: todosClientes },
       { data: lancamentosChart },
+      { data: atrasados },
     ] = await Promise.all([
       supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').neq('status', 'cancelado')
         .gte('data_hora', inicioMes.toISOString()).lte('data_hora', fimMes.toISOString()),
@@ -71,6 +85,11 @@ export default function DashboardPage() {
       supabase.from('lancamentos').select('valor, data, tipo')
         .gte('data', format(startOfMonth(subMonths(hoje, 5)), 'yyyy-MM-dd'))
         .lte('data', format(fimMes, 'yyyy-MM-dd')),
+      supabase.from('agendamentos').select('*, cliente:clientes(nome, telefone), servico:servicos(nome)')
+        .neq('status_pagamento', 'pago').neq('status', 'cancelado')
+        .not('data_prevista_pagamento', 'is', null)
+        .lt('data_prevista_pagamento', format(hoje, 'yyyy-MM-dd'))
+        .order('data_prevista_pagamento'),
     ])
 
     // Recebido = dinheiro que já entrou de verdade (pago inteiro, ou a parte já paga de um parcial).
@@ -105,8 +124,8 @@ export default function DashboardPage() {
       recebido_mes: recebido,
       recebido_mes_anterior: recebidoAnterior,
       esperado_mes: esperado,
-      total_clientes: (totalClientes as any)?.count ?? 0,
-      novos_clientes_mes: (novosClientes as any)?.count ?? 0,
+      total_clientes: totalClientesCount ?? 0,
+      novos_clientes_mes: novosClientesCount ?? 0,
       agendamentos_mes: realizadosMes.length,
       ticket_medio: realizadosMes.length > 0 ? valorRealizadosMes / realizadosMes.length : 0,
       despesas_mes: totalDespesas,
@@ -114,6 +133,7 @@ export default function DashboardPage() {
     })
 
     setProximosAgendamentos((proximos as any) ?? [])
+    setPagamentosAtrasados((atrasados as any) ?? [])
 
     const mesAtual = hoje.getMonth() + 1
     const aniversariantesMes = (todosClientes ?? []).filter((c: any) => {
@@ -345,14 +365,25 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {aniversariantes.map((c: any) => (
-                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-brand-surface">
-                    <div>
-                      <p className="text-sm font-medium text-brand-dark">{c.nome}</p>
+                  <div key={c.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-brand-surface">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{c.nome}</p>
                       <p className="text-xs text-brand-muted">{c.telefone}</p>
                     </div>
-                    <span className="text-xs text-brand-medium font-medium">
-                      {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM')}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-brand-medium font-medium">
+                        {format(new Date(c.data_nascimento + 'T00:00:00'), 'dd/MM')}
+                      </span>
+                      {c.telefone && (
+                        <Button
+                          size="icon-sm" variant="outline" className="text-success"
+                          title="Mandar parabéns no WhatsApp"
+                          onClick={() => window.open(linkWhatsApp(c.telefone, mensagemAniversario(c.nome)), '_blank')}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -381,14 +412,25 @@ export default function DashboardPage() {
                   ? differenceInDays(new Date(), new Date(ultimoAg.data_hora))
                   : null
                 return (
-                  <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-brand-surface-warm">
-                    <div>
-                      <p className="text-sm font-medium text-brand-dark">{c.nome}</p>
+                  <div key={c.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-brand-surface-warm">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{c.nome}</p>
                       <p className="text-xs text-brand-muted">{c.telefone}</p>
                     </div>
-                    {diasSemRetorno && (
-                      <span className="text-xs text-brand-terra font-medium">{diasSemRetorno}d atrás</span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {diasSemRetorno && (
+                        <span className="text-xs text-brand-terra font-medium">{diasSemRetorno}d atrás</span>
+                      )}
+                      {c.telefone && (
+                        <Button
+                          size="icon-sm" variant="outline" className="text-success"
+                          title="Mandar mensagem no WhatsApp"
+                          onClick={() => window.open(linkWhatsApp(c.telefone, mensagemSaudade(c.nome)), '_blank')}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -396,6 +438,47 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {pagamentosAtrasados.length > 0 && (
+        <Card className="border-danger/40">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CircleDollarSign className="h-4 w-4 text-danger" />
+              Pagamentos em Atraso
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pagamentosAtrasados.map((ag: any) => {
+                const saldo = ag.status_pagamento === 'parcial'
+                  ? Number(ag.valor_cobrado) - Number(ag.valor_pago ?? 0)
+                  : Number(ag.valor_cobrado)
+                const diasAtraso = differenceInDays(new Date(), new Date(ag.data_prevista_pagamento + 'T00:00:00'))
+                return (
+                  <div key={ag.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-danger-soft">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{ag.cliente?.nome}</p>
+                      <p className="text-xs text-danger">{formatCurrency(saldo)} · {diasAtraso}d de atraso</p>
+                    </div>
+                    {ag.cliente?.telefone && (
+                      <Button
+                        size="icon-sm" variant="outline" className="shrink-0 text-danger"
+                        title="Cobrar no WhatsApp"
+                        onClick={() => window.open(
+                          linkWhatsApp(ag.cliente.telefone, mensagemCobranca(ag.cliente.nome, ag.servico?.nome ?? 'procedimento', saldo)),
+                          '_blank'
+                        )}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

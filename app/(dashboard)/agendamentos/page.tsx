@@ -17,11 +17,11 @@ import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxI
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
-import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados } from '@/lib/agenda'
+import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados, paraMinutos, HORARIO_FUNCIONAMENTO } from '@/lib/agenda'
 import { formatCurrency } from '@/lib/format'
 import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
@@ -48,6 +48,22 @@ function promoValidaPara(data: string) {
   return !data || data <= PROMO_FIM
 }
 
+// Intensidade do dia no grid do mês (mapa de calor simplificado, referência: Trinks) —
+// dá pra ver de relance quais dias estão cheios sem precisar clicar em cada um.
+function intensidadeDia(qtd: number) {
+  if (qtd === 0) return ''
+  if (qtd <= 2) return 'bg-brand-gold/15'
+  if (qtd <= 4) return 'bg-brand-gold/30'
+  return 'bg-brand-gold/50'
+}
+
+const TIMELINE_STATUS_CLASSES: Record<Agendamento['status'], string> = {
+  agendado: 'bg-warning-soft border-warning/50 text-warning',
+  confirmado: 'bg-success-soft border-success/50 text-success',
+  realizado: 'bg-info-soft border-info/50 text-info',
+  cancelado: 'bg-muted border-border text-muted-foreground line-through opacity-70',
+}
+
 type AcaoTipo = 'realizado' | 'cancelar' | 'excluir'
 
 export default function AgendamentosPage() {
@@ -63,6 +79,7 @@ export default function AgendamentosPage() {
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(new Date())
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [buscaCliente, setBuscaCliente] = useState('')
   const [promo15, setPromo15] = useState(false)
   const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string } | null>(null)
   const [salvandoCliente, setSalvandoCliente] = useState(false)
@@ -170,6 +187,9 @@ export default function AgendamentosPage() {
     setForm(f => ({
       ...f,
       servico_id: id,
+      // Duração pode mudar com o serviço — reconfere o horário em vez de manter um
+      // horário que pode não caber mais (passar do fechamento ou bater em outro agendamento).
+      hora: id !== f.servico_id ? '' : f.hora,
       valor_cobrado: base !== null ? String(promo15 ? precoPromo(base) : base) : f.valor_cobrado,
     }))
   }
@@ -201,6 +221,12 @@ export default function AgendamentosPage() {
   async function salvarNovaCliente() {
     if (!novaCliente?.nome.trim() || novaCliente.telefone.replace(/\D/g, '').length < 10) {
       toast.error('Preenche nome e WhatsApp da cliente.')
+      return
+    }
+    const telefoneNovo = novaCliente.telefone.replace(/\D/g, '')
+    const duplicada = clientes.find(c => c.telefone.replace(/\D/g, '') === telefoneNovo)
+    if (duplicada) {
+      toast.error(`Esse WhatsApp já é da ${duplicada.nome} — busca o nome dela em vez de cadastrar de novo.`)
       return
     }
     setSalvandoCliente(true)
@@ -238,8 +264,11 @@ export default function AgendamentosPage() {
       const { error } = await supabase.from('agendamentos').update(payload).eq('id', editando.id)
       if (error) toast.error('Erro ao atualizar agendamento')
       else {
-        if (payload.status === 'realizado') {
-          await registrarEntradaFinanceira(editando.id, payload)
+        // Só lança no financeiro na transição pra "realizado" — evita duplicar entrada
+        // toda vez que um agendamento já realizado é apenas editado de novo.
+        if (payload.status === 'realizado' && editando.status !== 'realizado') {
+          const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
+          if (valor > 0) await registrarEntradaFinanceira(editando.id, payload, valor)
         }
         toast.success('Agendamento atualizado!')
         setDialogOpen(false)
@@ -250,7 +279,8 @@ export default function AgendamentosPage() {
       if (error) toast.error('Erro ao criar agendamento')
       else {
         if (payload.status === 'realizado' && data) {
-          await registrarEntradaFinanceira(data.id, payload)
+          const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
+          if (valor > 0) await registrarEntradaFinanceira(data.id, payload, valor)
         }
         toast.success('Agendamento criado!')
         setDialogOpen(false)
@@ -260,14 +290,23 @@ export default function AgendamentosPage() {
     setSalvando(false)
   }
 
-  async function registrarEntradaFinanceira(agendamentoId: string, payload: any) {
+  // Quanto entra de fato no financeiro ao marcar como realizado — só o que já foi
+  // efetivamente recebido (pago inteiro, ou a parte já paga de um parcial). Pagamento
+  // pendente não lança nada agora; quando o dinheiro chegar, é lançamento manual.
+  function valorRecebidoAoRealizar(statusPagamento: string, valorCobrado: number, valorPago: number | null) {
+    if (statusPagamento === 'pago') return valorCobrado
+    if (statusPagamento === 'parcial') return Number(valorPago ?? 0)
+    return 0
+  }
+
+  async function registrarEntradaFinanceira(agendamentoId: string, payload: any, valor: number) {
     const cliente = clientes.find(c => c.id === payload.cliente_id)
     const servico = servicos.find(s => s.id === payload.servico_id)
     const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}`
     await supabase.from('lancamentos').insert({
       tipo: 'entrada',
       descricao: desc,
-      valor: Number(payload.valor_cobrado),
+      valor,
       categoria: 'Serviço',
       data: format(new Date(payload.data_hora), 'yyyy-MM-dd'),
       agendamento_id: agendamentoId,
@@ -279,10 +318,14 @@ export default function AgendamentosPage() {
     const { tipo, ag } = acao
 
     if (tipo === 'realizado') {
-      const { error } = await supabase.from('agendamentos').update({ status: 'realizado' }).eq('id', ag.id)
+      // O botão rápido assume pagamento em dinheiro na hora, igual sempre foi — só
+      // não sobrescreve se já tinha marcado parcial/pago manualmente antes.
+      const statusPagamento = ag.status_pagamento === 'pendente' || !ag.status_pagamento ? 'pago' : ag.status_pagamento
+      const { error } = await supabase.from('agendamentos').update({ status: 'realizado', status_pagamento: statusPagamento }).eq('id', ag.id)
       if (!error) {
-        await registrarEntradaFinanceira(ag.id, { ...ag, data_hora: ag.data_hora })
-        toast.success(`Realizado! ${formatCurrency(Number(ag.valor_cobrado))} lançado no financeiro.`)
+        const valor = valorRecebidoAoRealizar(statusPagamento, Number(ag.valor_cobrado), ag.valor_pago ?? null)
+        if (valor > 0) await registrarEntradaFinanceira(ag.id, ag, valor)
+        toast.success(valor > 0 ? `Realizado! ${formatCurrency(valor)} lançado no financeiro.` : 'Realizado!')
         loadData()
       } else {
         toast.error('Erro ao marcar como realizado')
@@ -304,9 +347,9 @@ export default function AgendamentosPage() {
     ? agendamentos.filter(ag => isSameDay(new Date(ag.data_hora), diaSelecionado))
     : []
 
-  const agendamentosFiltrados = filtroStatus === 'todos'
-    ? agendamentos
-    : agendamentos.filter(ag => ag.status === filtroStatus)
+  const agendamentosFiltrados = agendamentos
+    .filter(ag => filtroStatus === 'todos' || ag.status === filtroStatus)
+    .filter(ag => !buscaCliente.trim() || (ag as any).cliente?.nome?.toLowerCase().includes(buscaCliente.trim().toLowerCase()))
 
   return (
     <div className="space-y-6">
@@ -327,6 +370,15 @@ export default function AgendamentosPage() {
         </TabsList>
 
         <TabsContent value="lista" className="space-y-4">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted-soft" />
+            <Input
+              placeholder="Buscar por nome da cliente..."
+              className="pl-10"
+              value={buscaCliente}
+              onChange={e => setBuscaCliente(e.target.value)}
+            />
+          </div>
           <div className="flex gap-2 flex-wrap">
             {(['todos', 'agendado', 'confirmado', 'realizado', 'cancelado'] as const).map(s => (
               <Button
@@ -374,6 +426,7 @@ export default function AgendamentosPage() {
                       <p className="text-sm text-muted-foreground truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-brand-muted-soft">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
+                        {' · '}{ag.local === 'karine' ? 'Espaço Karine' : 'Quartinho'}
                         {ag.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABELS[ag.forma_pagamento as NonNullable<Agendamento['forma_pagamento']>]}`}
                       </p>
                       <div className="flex gap-1 mt-2">
@@ -456,7 +509,7 @@ export default function AgendamentosPage() {
                     onClick={() => setDiaSelecionado(selecionado ? null : dia)}
                     className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-15 flex flex-col items-center gap-1
                       ${hoje && !selecionado ? 'ring-2 ring-brand-gold' : ''}
-                      ${selecionado ? 'bg-primary text-primary-foreground' : fechado ? 'text-muted-foreground/50 hover:bg-muted' : 'hover:bg-muted'}
+                      ${selecionado ? 'bg-primary text-primary-foreground' : fechado ? 'text-muted-foreground/50 hover:bg-muted' : `hover:bg-muted ${intensidadeDia(agsNoDia.length)}`}
                     `}
                   >
                     <span className="font-medium">{format(dia, 'd')}</span>
@@ -490,29 +543,50 @@ export default function AgendamentosPage() {
                 <CardContent>
                   {agendamentosDoDia.length === 0 ? (
                     <p className="text-sm text-brand-muted-soft text-center py-4">Nenhum agendamento neste dia</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {agendamentosDoDia.map((ag: any) => (
-                        <div key={ag.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-brand-border">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="shrink-0 rounded-lg bg-brand-surface px-2.5 py-1.5 text-center">
-                              <span className="font-heading text-sm font-semibold text-brand-dark">{format(new Date(ag.data_hora), 'HH:mm')}</span>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-medium text-sm truncate">{ag.cliente?.nome}</p>
-                              <p className="text-xs text-muted-foreground truncate">{ag.servico?.nome}</p>
-                            </div>
+                  ) : (() => {
+                    const aberturaMin = paraMinutos(HORARIO_FUNCIONAMENTO.abertura)
+                    const fechamentoMin = paraMinutos(HORARIO_FUNCIONAMENTO.fechamento)
+                    const totalMin = fechamentoMin - aberturaMin
+                    const horaInicio = Math.floor(aberturaMin / 60)
+                    const horaFim = Math.ceil(fechamentoMin / 60)
+                    const horasLinha = Array.from({ length: horaFim - horaInicio + 1 }, (_, i) => horaInicio + i)
+                    return (
+                      <div
+                        className="relative ml-12 cursor-pointer rounded-lg border border-brand-border"
+                        style={{ height: totalMin }}
+                        onClick={() => diaFunciona(diaSelecionado) && abrirNovo(diaSelecionado)}
+                      >
+                        {horasLinha.map(h => (
+                          <div
+                            key={h}
+                            className="absolute right-0 left-0 border-t border-brand-border/60"
+                            style={{ top: Math.max(0, h * 60 - aberturaMin) }}
+                          >
+                            <span className="absolute -left-12 -translate-y-1/2 bg-card px-1 text-[10px] text-muted-foreground">
+                              {String(h).padStart(2, '0')}:00
+                            </span>
                           </div>
-                          <div className="text-right space-y-1 shrink-0">
-                            <p className="text-sm font-medium text-primary">{formatCurrency(ag.valor_cobrado)}</p>
-                            <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]}>
-                              {STATUS_LABELS[ag.status as Agendamento['status']]}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                        {agendamentosDoDia.map((ag: any) => {
+                          const dt = new Date(ag.data_hora)
+                          const inicioAg = dt.getHours() * 60 + dt.getMinutes()
+                          const duracao = ag.servico?.duracao_minutos ?? 60
+                          return (
+                            <button
+                              key={ag.id}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); abrirEditar(ag) }}
+                              className={`absolute right-1 left-1 overflow-hidden rounded-md border px-2 py-1 text-left transition-opacity hover:opacity-80 ${TIMELINE_STATUS_CLASSES[ag.status as Agendamento['status']]}`}
+                              style={{ top: Math.max(0, inicioAg - aberturaMin), height: Math.max(duracao, 22) }}
+                            >
+                              <span className="text-[11px] font-semibold">{format(dt, 'HH:mm')} · {ag.cliente?.nome}</span>
+                              {duracao >= 30 && <span className="block truncate text-[10px]">{ag.servico?.nome}</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </CardContent>
               </Card>
             )}
@@ -528,7 +602,7 @@ export default function AgendamentosPage() {
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Cliente *</Label>
+                <Label htmlFor="ag-cliente">Cliente *</Label>
                 <button
                   type="button"
                   onClick={() => setNovaCliente(nc => nc ? null : { nome: '', telefone: '' })}
@@ -564,7 +638,7 @@ export default function AgendamentosPage() {
                   openOnInputClick
                 >
                   <ComboboxInputGroup>
-                    <ComboboxInput placeholder="Buscar cliente..." />
+                    <ComboboxInput id="ag-cliente" placeholder="Buscar cliente..." />
                   </ComboboxInputGroup>
                   <ComboboxContent>
                     {(id: string) => (
@@ -575,7 +649,7 @@ export default function AgendamentosPage() {
               )}
             </div>
             <div className="space-y-2">
-              <Label>Serviço *</Label>
+              <Label htmlFor="ag-servico">Serviço *</Label>
               <Combobox
                 items={servicos.map(s => s.id)}
                 value={form.servico_id || null}
@@ -585,7 +659,7 @@ export default function AgendamentosPage() {
                 openOnInputClick
               >
                 <ComboboxInputGroup>
-                  <ComboboxInput placeholder="Buscar serviço..." />
+                  <ComboboxInput id="ag-servico" placeholder="Buscar serviço..." />
                 </ComboboxInputGroup>
                 <ComboboxContent>
                   {(id: string) => (
@@ -597,8 +671,9 @@ export default function AgendamentosPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Data *</Label>
+                <Label htmlFor="ag-data">Data *</Label>
                 <Input
+                  id="ag-data"
                   type="date"
                   value={form.data}
                   onChange={e => selecionarData(e.target.value)}
@@ -671,6 +746,13 @@ export default function AgendamentosPage() {
                 Duração: {servicoEscolhido?.duracao_minutos ?? 60} min
               </p>
             )}
+            <div className="space-y-2">
+              <Label>Local do atendimento</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" size="sm" variant={form.local === 'quartinho' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, local: 'quartinho' }))}>Quartinho</Button>
+                <Button type="button" size="sm" variant={form.local === 'karine' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, local: 'karine' }))}>Espaço Karine</Button>
+              </div>
+            </div>
             {PROMO_ATIVA && !editando && (
               promoValidaPara(form.data) ? (
                 <label className="flex items-center gap-2 rounded-lg border border-brand-terra bg-brand-surface-warm p-3 text-sm font-medium text-brand-terra cursor-pointer">
@@ -685,13 +767,13 @@ export default function AgendamentosPage() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Valor (R$) *</Label>
-                <Input type="number" step="0.01" value={form.valor_cobrado} onChange={e => setForm(f => ({ ...f, valor_cobrado: e.target.value }))} required />
+                <Label htmlFor="ag-valor">Valor (R$) *</Label>
+                <Input id="ag-valor" type="number" step="0.01" value={form.valor_cobrado} onChange={e => setForm(f => ({ ...f, valor_cobrado: e.target.value }))} required />
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label htmlFor="ag-status">Status</Label>
                 <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v ?? f.status }))}>
-                  <SelectTrigger>
+                  <SelectTrigger id="ag-status">
                     <SelectValue>
                       {STATUS_LABELS[form.status as Agendamento['status']]}
                     </SelectValue>
@@ -714,9 +796,9 @@ export default function AgendamentosPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Forma de pagamento</Label>
+                <Label htmlFor="ag-forma-pagamento">Forma de pagamento</Label>
                 <Select value={form.forma_pagamento} onValueChange={v => setForm(f => ({ ...f, forma_pagamento: v ?? '' }))}>
-                  <SelectTrigger>
+                  <SelectTrigger id="ag-forma-pagamento">
                     <SelectValue placeholder="Não informado">
                       {form.forma_pagamento ? FORMA_PAGAMENTO_LABELS[form.forma_pagamento as keyof typeof FORMA_PAGAMENTO_LABELS] : undefined}
                     </SelectValue>
@@ -730,25 +812,25 @@ export default function AgendamentosPage() {
               </div>
               {form.status_pagamento === 'parcial' ? (
                 <div className="space-y-2">
-                  <Label>Valor já pago (R$)</Label>
-                  <Input type="number" step="0.01" value={form.valor_pago} onChange={e => setForm(f => ({ ...f, valor_pago: e.target.value }))} />
+                  <Label htmlFor="ag-valor-pago">Valor já pago (R$)</Label>
+                  <Input id="ag-valor-pago" type="number" step="0.01" value={form.valor_pago} onChange={e => setForm(f => ({ ...f, valor_pago: e.target.value }))} />
                 </div>
               ) : form.status_pagamento === 'pendente' ? (
                 <div className="space-y-2">
-                  <Label>Data prometida</Label>
-                  <Input type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
+                  <Label htmlFor="ag-data-prometida">Data prometida</Label>
+                  <Input id="ag-data-prometida" type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
                 </div>
               ) : null}
             </div>
             {form.status_pagamento === 'parcial' && (
               <div className="space-y-2">
-                <Label>Data prevista pro restante</Label>
-                <Input type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
+                <Label htmlFor="ag-data-restante">Data prevista pro restante</Label>
+                <Input id="ag-data-restante" type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
               </div>
             )}
             <div className="space-y-2">
-              <Label>Observações</Label>
-              <Textarea value={form.observacoes} onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} />
+              <Label htmlFor="ag-observacoes">Observações</Label>
+              <Textarea id="ag-observacoes" value={form.observacoes} onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} />
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>

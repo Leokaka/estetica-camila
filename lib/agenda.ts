@@ -17,7 +17,7 @@ export const HORARIO_FUNCIONAMENTO = {
   grade: 15, // minutos entre horários candidatos
 }
 
-function paraMinutos(hhmm: string): number {
+export function paraMinutos(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number)
   return h * 60 + m
 }

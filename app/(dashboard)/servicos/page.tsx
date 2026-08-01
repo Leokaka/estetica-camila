@@ -221,13 +221,13 @@ export default function ServicosPage() {
           </DialogHeader>
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome do Serviço *</Label>
-              <Input value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required />
+              <Label htmlFor="servico-nome">Nome do Serviço *</Label>
+              <Input id="servico-nome" value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label>Categoria</Label>
+              <Label htmlFor="servico-categoria">Categoria</Label>
               <Select value={form.categoria} onValueChange={v => setForm({ ...form, categoria: v ?? form.categoria })}>
-                <SelectTrigger><SelectValue>{form.categoria}</SelectValue></SelectTrigger>
+                <SelectTrigger id="servico-categoria"><SelectValue>{form.categoria}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
@@ -235,24 +235,24 @@ export default function ServicosPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Preço de Venda (R$) *</Label>
-                <Input type="number" step="0.01" min="0" value={form.preco} onChange={e => setForm({ ...form, preco: e.target.value })} required />
+                <Label htmlFor="servico-preco">Preço de Venda (R$) *</Label>
+                <Input id="servico-preco" type="number" step="0.01" min="0" value={form.preco} onChange={e => setForm({ ...form, preco: e.target.value })} required />
               </div>
               <div className="space-y-2">
-                <Label>Custo (R$) *</Label>
-                <Input type="number" step="0.01" min="0" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} required />
+                <Label htmlFor="servico-custo">Custo (R$) *</Label>
+                <Input id="servico-custo" type="number" step="0.01" min="0" value={form.custo} onChange={e => setForm({ ...form, custo: e.target.value })} required />
               </div>
             </div>
 
             {/* Calculadora de lucro removida hoje (inauguração, tela pode ser vista por clientes) */}
 
             <div className="space-y-2">
-              <Label>Duração (minutos)</Label>
-              <Input type="number" min="5" step="5" value={form.duracao_minutos} onChange={e => setForm({ ...form, duracao_minutos: e.target.value })} />
+              <Label htmlFor="servico-duracao">Duração (minutos)</Label>
+              <Input id="servico-duracao" type="number" min="5" step="5" value={form.duracao_minutos} onChange={e => setForm({ ...form, duracao_minutos: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Textarea value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} rows={2} />
+              <Label htmlFor="servico-descricao">Descrição</Label>
+              <Textarea id="servico-descricao" value={form.descricao} onChange={e => setForm({ ...form, descricao: e.target.value })} rows={2} />
             </div>
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
