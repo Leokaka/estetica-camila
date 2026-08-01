@@ -350,9 +350,16 @@ export default function AgendamentosPage() {
   }
 
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mesAtual), end: endOfMonth(mesAtual) })
+  const buscaAtiva = buscaCliente.trim().toLowerCase()
   const agendamentosDoDia = diaSelecionado
-    ? agendamentos.filter(ag => isSameDay(new Date(ag.data_hora), diaSelecionado))
+    ? agendamentos
+        .filter(ag => isSameDay(new Date(ag.data_hora), diaSelecionado))
+        .filter(ag => !buscaAtiva || (ag as any).cliente?.nome?.toLowerCase().includes(buscaAtiva))
     : []
+
+  const hojeAgendamentos = agendamentos.filter(ag => ag.status !== 'cancelado' && isSameDay(new Date(ag.data_hora), new Date()))
+  const hojeConfirmados = hojeAgendamentos.filter(ag => ag.status === 'confirmado' || ag.status === 'realizado').length
+  const hojeAguardando = hojeAgendamentos.filter(ag => ag.status === 'agendado').length
 
   const agendamentosFiltrados = agendamentos
     .filter(ag => filtroStatus === 'todos' || ag.status === filtroStatus)
@@ -487,6 +494,32 @@ export default function AgendamentosPage() {
 
         <TabsContent value="calendario">
           <div className="space-y-4">
+            {hojeAgendamentos.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand-gold/40 bg-brand-surface-warm px-3 py-2 text-sm">
+                <Badge variant="info">Hoje</Badge>
+                <span className="font-medium text-brand-dark">{hojeAgendamentos.length} agendamento{hojeAgendamentos.length > 1 ? 's' : ''}</span>
+                {hojeConfirmados > 0 && <span className="text-brand-text-soft">· {hojeConfirmados} confirmado{hojeConfirmados > 1 ? 's' : ''}</span>}
+                {hojeAguardando > 0 && <span className="text-brand-text-soft">· {hojeAguardando} aguardando confirmação</span>}
+                <button
+                  type="button"
+                  className="ml-auto text-xs font-medium text-primary hover:underline"
+                  onClick={() => setDiaSelecionado(new Date())}
+                >
+                  Ver hoje
+                </button>
+              </div>
+            )}
+
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-muted-soft" />
+              <Input
+                placeholder="Buscar por nome da cliente..."
+                className="pl-10"
+                value={buscaCliente}
+                onChange={e => setBuscaCliente(e.target.value)}
+              />
+            </div>
+
             <div className="flex gap-2 items-center">
               <Button variant="outline" size="sm" onClick={() => setMesAtual(m => new Date(m.getFullYear(), m.getMonth() - 1))}>
                 ← Anterior
@@ -505,7 +538,9 @@ export default function AgendamentosPage() {
                 <div key={`empty-${i}`} />
               ))}
               {diasDoMes.map(dia => {
-                const agsNoDia = agendamentos.filter(ag => ag.status !== 'cancelado' && isSameDay(new Date(ag.data_hora), dia))
+                const agsNoDia = agendamentos
+                  .filter(ag => ag.status !== 'cancelado' && isSameDay(new Date(ag.data_hora), dia))
+                  .filter(ag => !buscaAtiva || (ag as any).cliente?.nome?.toLowerCase().includes(buscaAtiva))
                 const hoje = isToday(dia)
                 const selecionado = diaSelecionado && isSameDay(dia, diaSelecionado)
                 const fechado = !diaFunciona(dia)
