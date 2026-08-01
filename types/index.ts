@@ -26,6 +26,8 @@ export interface Agendamento {
   servico_id: string
   data_hora: string
   status: 'agendado' | 'confirmado' | 'realizado' | 'cancelado'
+  /** Fora de uso desde 01/08/2026 (Camila só atende no espaço próprio agora) —
+   * mantido pra compatibilidade com dado histórico de abr-jun/2026, sem UI. */
   local: 'quartinho' | 'karine'
   valor_cobrado: number
   observacoes?: string

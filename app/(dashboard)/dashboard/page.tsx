@@ -9,13 +9,13 @@ import {
   DollarSign, Users, TrendingUp, TrendingDown,
   Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle, CircleDollarSign,
 } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, isToday } from 'date-fns'
+import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, isToday, addDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Agendamento, Cliente } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
-import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
+import { linkWhatsApp, mensagemConfirmacao, mensagemLembrete } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 
 function mensagemCobranca(nome: string, servico: string, valor: number) {
@@ -45,6 +45,7 @@ export default function DashboardPage() {
     lucro_mes: 0,
   })
   const [proximosAgendamentos, setProximosAgendamentos] = useState<Agendamento[]>([])
+  const [agendamentosAmanha, setAgendamentosAmanha] = useState<Agendamento[]>([])
   const [aniversariantes, setAniversariantes] = useState<Cliente[]>([])
   const [clientesSemRetorno, setClientesSemRetorno] = useState<Cliente[]>([])
   const [pagamentosAtrasados, setPagamentosAtrasados] = useState<Agendamento[]>([])
@@ -68,6 +69,7 @@ export default function DashboardPage() {
       { data: todosClientes },
       { data: lancamentosChart },
       { data: atrasados },
+      { data: amanha },
     ] = await Promise.all([
       supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').neq('status', 'cancelado')
         .gte('data_hora', inicioMes.toISOString()).lte('data_hora', fimMes.toISOString()),
@@ -90,6 +92,11 @@ export default function DashboardPage() {
         .not('data_prevista_pagamento', 'is', null)
         .lt('data_prevista_pagamento', format(hoje, 'yyyy-MM-dd'))
         .order('data_prevista_pagamento'),
+      supabase.from('agendamentos').select('*, cliente:clientes(nome, telefone), servico:servicos(nome)')
+        .gte('data_hora', startOfDay(addDays(hoje, 1)).toISOString())
+        .lte('data_hora', endOfDay(addDays(hoje, 1)).toISOString())
+        .in('status', ['agendado', 'confirmado'])
+        .order('data_hora'),
     ])
 
     // Recebido = dinheiro que já entrou de verdade (pago inteiro, ou a parte já paga de um parcial).
@@ -134,6 +141,7 @@ export default function DashboardPage() {
 
     setProximosAgendamentos((proximos as any) ?? [])
     setPagamentosAtrasados((atrasados as any) ?? [])
+    setAgendamentosAmanha((amanha as any) ?? [])
 
     const mesAtual = hoje.getMonth() + 1
     const aniversariantesMes = (todosClientes ?? []).filter((c: any) => {
@@ -267,6 +275,44 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {agendamentosAmanha.length > 0 && (
+        <Card className="border-info/40">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-info" />
+              Amanhã ({agendamentosAmanha.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {agendamentosAmanha.map((ag: any) => {
+                const dt = new Date(ag.data_hora)
+                return (
+                  <div key={ag.id} className="flex items-center justify-between gap-3 rounded-lg bg-brand-surface p-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-brand-dark">{format(dt, 'HH:mm')} · {ag.cliente?.nome}</p>
+                      <p className="truncate text-xs text-brand-muted">{ag.servico?.nome}</p>
+                    </div>
+                    {ag.cliente?.telefone && (
+                      <Button
+                        size="icon-sm" variant="outline" className="shrink-0 text-success"
+                        title="Mandar lembrete no WhatsApp"
+                        onClick={() => window.open(
+                          linkWhatsApp(ag.cliente.telefone, mensagemLembrete(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', dt)),
+                          '_blank'
+                        )}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Cards de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">

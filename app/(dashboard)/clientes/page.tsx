@@ -36,6 +36,7 @@ export default function ClientesPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [salvando, setSalvando] = useState(false)
   const [excluindo, setExcluindo] = useState<Cliente | null>(null)
+  const [excluindoQtdAgendamentos, setExcluindoQtdAgendamentos] = useState<number | null>(null)
 
   async function loadClientes() {
     setLoading(true)
@@ -104,11 +105,19 @@ export default function ClientesPage() {
     setSalvando(false)
   }
 
+  async function confirmarExclusao(c: Cliente) {
+    setExcluindo(c)
+    setExcluindoQtdAgendamentos(null)
+    const { count } = await supabase.from('agendamentos').select('id', { count: 'exact', head: true }).eq('cliente_id', c.id)
+    setExcluindoQtdAgendamentos(count ?? 0)
+  }
+
   async function excluir(id: string) {
     const { error } = await supabase.from('clientes').delete().eq('id', id)
     if (error) toast.error('Erro ao excluir cliente')
     else { toast.success('Cliente excluída'); loadClientes() }
     setExcluindo(null)
+    setExcluindoQtdAgendamentos(null)
   }
 
   const clientesFiltrados = clientes.filter(c =>
@@ -205,7 +214,7 @@ export default function ClientesPage() {
                     <Button size="sm" variant="outline" onClick={() => abrirEditar(c)}>
                       <Edit className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="sm" variant="outline" className="text-danger" onClick={() => setExcluindo(c)}>
+                    <Button size="sm" variant="outline" className="text-danger" onClick={() => confirmarExclusao(c)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -288,12 +297,18 @@ export default function ClientesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Isso remove {excluindo?.nome} e o histórico associado não pode ser desfeito.
+              {excluindoQtdAgendamentos === null ? (
+                'Conferindo histórico...'
+              ) : excluindoQtdAgendamentos > 0 ? (
+                <>Isso remove <strong>{excluindo?.nome}</strong> e apaga <strong>{excluindoQtdAgendamentos} agendamento{excluindoQtdAgendamentos > 1 ? 's' : ''}</strong> do histórico dela junto — não pode ser desfeito.</>
+              ) : (
+                <>Isso remove {excluindo?.nome}. Ela não tem agendamento no histórico — não pode ser desfeito.</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => excluindo && excluir(excluindo.id)}>
+            <AlertDialogAction variant="destructive" disabled={excluindoQtdAgendamentos === null} onClick={() => excluindo && excluir(excluindo.id)}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

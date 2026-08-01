@@ -29,6 +29,9 @@ import {
 } from '@/lib/status'
 import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/whatsapp'
 
+// 'local' saiu da UI em 01/08/2026 — Camila fechou o quartinho e o acordo com a Karine,
+// hoje só atende no espaço próprio dela. Campo mantido fixo em 'quartinho' só pra bater
+// com a constraint do banco (NOT NULL); "karine" existe só em dado histórico de abr-jun/2026.
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
   local: 'quartinho', valor_cobrado: '', observacoes: '',
@@ -81,7 +84,8 @@ export default function AgendamentosPage() {
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [buscaCliente, setBuscaCliente] = useState('')
   const [promo15, setPromo15] = useState(false)
-  const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string } | null>(null)
+  const [novaClienteAberta, setNovaClienteAberta] = useState(false)
+  const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string }>({ nome: '', telefone: '' })
   const [salvandoCliente, setSalvandoCliente] = useState(false)
   const [acao, setAcao] = useState<{ tipo: AcaoTipo; ag: Agendamento } | null>(null)
 
@@ -113,7 +117,8 @@ export default function AgendamentosPage() {
     setEditando(null)
     setForm({ ...EMPTY_FORM, data: data ? format(data, 'yyyy-MM-dd') : '' })
     setPromo15(false)
-    setNovaCliente(null)
+    setNovaClienteAberta(false)
+    setNovaCliente({ nome: '', telefone: '' })
     setDialogOpen(true)
   }
 
@@ -134,6 +139,7 @@ export default function AgendamentosPage() {
       valor_pago: ag.valor_pago != null ? String(ag.valor_pago) : '',
       data_prevista_pagamento: ag.data_prevista_pagamento ?? '',
     })
+    setNovaClienteAberta(false)
     setDialogOpen(true)
   }
 
@@ -219,7 +225,7 @@ export default function AgendamentosPage() {
   }
 
   async function salvarNovaCliente() {
-    if (!novaCliente?.nome.trim() || novaCliente.telefone.replace(/\D/g, '').length < 10) {
+    if (!novaCliente.nome.trim() || novaCliente.telefone.replace(/\D/g, '').length < 10) {
       toast.error('Preenche nome e WhatsApp da cliente.')
       return
     }
@@ -239,7 +245,8 @@ export default function AgendamentosPage() {
     if (error || !data) { toast.error('Erro ao cadastrar cliente'); return }
     setClientes(cs => [...cs, data].sort((a, b) => a.nome.localeCompare(b.nome)))
     setForm(f => ({ ...f, cliente_id: data.id }))
-    setNovaCliente(null)
+    setNovaCliente({ nome: '', telefone: '' })
+    setNovaClienteAberta(false)
     toast.success(`${data.nome} cadastrada!`)
   }
 
@@ -426,7 +433,6 @@ export default function AgendamentosPage() {
                       <p className="text-sm text-muted-foreground truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-brand-muted-soft">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
-                        {' · '}{ag.local === 'karine' ? 'Espaço Karine' : 'Quartinho'}
                         {ag.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABELS[ag.forma_pagamento as NonNullable<Agendamento['forma_pagamento']>]}`}
                       </p>
                       <div className="flex gap-1 mt-2">
@@ -605,24 +611,24 @@ export default function AgendamentosPage() {
                 <Label htmlFor="ag-cliente">Cliente *</Label>
                 <button
                   type="button"
-                  onClick={() => setNovaCliente(nc => nc ? null : { nome: '', telefone: '' })}
+                  onClick={() => setNovaClienteAberta(v => !v)}
                   className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                 >
-                  <UserPlus className="h-3.5 w-3.5" /> {novaCliente ? 'Cancelar' : 'Nova cliente'}
+                  <UserPlus className="h-3.5 w-3.5" /> {novaClienteAberta ? 'Cancelar' : 'Nova cliente'}
                 </button>
               </div>
-              {novaCliente ? (
+              {novaClienteAberta ? (
                 <div className="space-y-2 rounded-lg border border-brand-gold bg-brand-card p-3">
                   <Input
                     placeholder="Nome da cliente"
                     value={novaCliente.nome}
-                    onChange={e => setNovaCliente(nc => nc && ({ ...nc, nome: e.target.value }))}
+                    onChange={e => setNovaCliente(nc => ({ ...nc, nome: e.target.value }))}
                   />
                   <Input
                     type="tel"
                     placeholder="WhatsApp (11) 9XXXX-XXXX"
                     value={novaCliente.telefone}
-                    onChange={e => setNovaCliente(nc => nc && ({ ...nc, telefone: e.target.value }))}
+                    onChange={e => setNovaCliente(nc => ({ ...nc, telefone: e.target.value }))}
                   />
                   <Button type="button" size="sm" className="w-full" disabled={salvandoCliente} onClick={salvarNovaCliente}>
                     {salvandoCliente ? 'Cadastrando...' : 'Cadastrar e selecionar'}
@@ -746,13 +752,6 @@ export default function AgendamentosPage() {
                 Duração: {servicoEscolhido?.duracao_minutos ?? 60} min
               </p>
             )}
-            <div className="space-y-2">
-              <Label>Local do atendimento</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="button" size="sm" variant={form.local === 'quartinho' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, local: 'quartinho' }))}>Quartinho</Button>
-                <Button type="button" size="sm" variant={form.local === 'karine' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, local: 'karine' }))}>Espaço Karine</Button>
-              </div>
-            </div>
             {PROMO_ATIVA && !editando && (
               promoValidaPara(form.data) ? (
                 <label className="flex items-center gap-2 rounded-lg border border-brand-terra bg-brand-surface-warm p-3 text-sm font-medium text-brand-terra cursor-pointer">

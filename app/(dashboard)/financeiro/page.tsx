@@ -48,13 +48,16 @@ export default function FinanceiroPage() {
   const [mesAtual, setMesAtual] = useState(new Date())
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [excluindo, setExcluindo] = useState<Lancamento | null>(null)
+  const [periodoCustomAberto, setPeriodoCustomAberto] = useState(false)
+  const [periodo, setPeriodo] = useState<{ inicio: string; fim: string } | null>(null)
+  const [periodoRascunho, setPeriodoRascunho] = useState({ inicio: '', fim: '' })
 
-  useEffect(() => { loadLancamentos() }, [mesAtual])
+  useEffect(() => { loadLancamentos() }, [mesAtual, periodo])
 
   async function loadLancamentos() {
     setLoading(true)
-    const inicio = format(startOfMonth(mesAtual), 'yyyy-MM-dd')
-    const fim = format(endOfMonth(mesAtual), 'yyyy-MM-dd')
+    const inicio = periodo ? periodo.inicio : format(startOfMonth(mesAtual), 'yyyy-MM-dd')
+    const fim = periodo ? periodo.fim : format(endOfMonth(mesAtual), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('lancamentos')
       .select('*')
@@ -117,13 +120,17 @@ export default function FinanceiroPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Financeiro</h1>
-          <p className="text-muted-foreground">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
+          <p className="text-muted-foreground">
+            {periodo
+              ? `${format(new Date(periodo.inicio + 'T00:00:00'), 'dd/MM/yyyy')} a ${format(new Date(periodo.fim + 'T00:00:00'), 'dd/MM/yyyy')}`
+              : format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => exportarCSV(
-              `financeiro-${format(mesAtual, 'yyyy-MM')}.csv`,
+              `financeiro-${periodo ? `${periodo.inicio}_a_${periodo.fim}` : format(mesAtual, 'yyyy-MM')}.csv`,
               [
                 ['Data', 'Tipo', 'Descrição', 'Categoria', 'Valor'],
                 ...lancamentosFiltrados.map(l => [
@@ -145,12 +152,56 @@ export default function FinanceiroPage() {
       </div>
 
       {/* Navegação de mês */}
-      <div className="flex gap-2 items-center">
-        <Button variant="outline" size="sm" onClick={() => setMesAtual(m => subMonths(m, 1))}>← Anterior</Button>
-        <span className="text-sm font-medium px-2">{format(mesAtual, "MMMM yyyy", { locale: ptBR })}</span>
-        <Button variant="outline" size="sm" onClick={() => setMesAtual(m => new Date(m.getFullYear(), m.getMonth() + 1))}>Próximo →</Button>
-        <Button variant="ghost" size="sm" onClick={() => setMesAtual(new Date())}>Hoje</Button>
-      </div>
+      {!periodo && (
+        <div className="flex gap-2 items-center flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setMesAtual(m => subMonths(m, 1))}>← Anterior</Button>
+          <span className="text-sm font-medium px-2">{format(mesAtual, "MMMM yyyy", { locale: ptBR })}</span>
+          <Button variant="outline" size="sm" onClick={() => setMesAtual(m => new Date(m.getFullYear(), m.getMonth() + 1))}>Próximo →</Button>
+          <Button variant="ghost" size="sm" onClick={() => setMesAtual(new Date())}>Hoje</Button>
+          <Button variant="ghost" size="sm" onClick={() => setPeriodoCustomAberto(v => !v)}>
+            Período customizado
+          </Button>
+        </div>
+      )}
+
+      {periodo && (
+        <div className="flex gap-2 items-center flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => { setPeriodo(null); setPeriodoCustomAberto(false) }}>
+            ← Voltar pro mês
+          </Button>
+        </div>
+      )}
+
+      {periodoCustomAberto && !periodo && (
+        <div className="flex gap-2 items-end flex-wrap p-3 rounded-lg border border-brand-border bg-brand-surface">
+          <div>
+            <label htmlFor="fin-periodo-inicio" className="block text-xs font-medium text-brand-text-soft mb-1">De</label>
+            <Input
+              id="fin-periodo-inicio"
+              type="date"
+              value={periodoRascunho.inicio}
+              onChange={e => setPeriodoRascunho(p => ({ ...p, inicio: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label htmlFor="fin-periodo-fim" className="block text-xs font-medium text-brand-text-soft mb-1">Até</label>
+            <Input
+              id="fin-periodo-fim"
+              type="date"
+              value={periodoRascunho.fim}
+              onChange={e => setPeriodoRascunho(p => ({ ...p, fim: e.target.value }))}
+            />
+          </div>
+          <Button
+            size="sm"
+            disabled={!periodoRascunho.inicio || !periodoRascunho.fim}
+            onClick={() => { setPeriodo(periodoRascunho); setPeriodoCustomAberto(false) }}
+          >
+            Aplicar
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPeriodoCustomAberto(false)}>Cancelar</Button>
+        </div>
+      )}
 
       {/* Resumo do mês */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS servicos (
 
 -- Tabela de agendamentos
 -- local: 'quartinho' = 100% da Camila | 'karine' = 60% da Camila
+-- (fora de uso desde 01/08/2026 — Camila abriu espaço próprio, não tem mais quartinho
+-- nem parceria com a Karine; coluna preservada só por causa do dado histórico abr-jun/2026)
 CREATE TABLE IF NOT EXISTS agendamentos (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   cliente_id UUID NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,

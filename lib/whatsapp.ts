@@ -14,6 +14,12 @@ export function mensagemAgradecimento(nome: string, servico: string) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar no meu trabalho hoje! Espero que tenha amado o resultado do seu ${servico} ✨\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
 }
 
+/** Lembrete de véspera — pra mandar de uma vez pra quem tem atendimento amanhã. */
+export function mensagemLembrete(nome: string, servico: string, dataHora: Date) {
+  const hora = format(dataHora, 'HH:mm')
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSó lembrando do seu horário amanhã: ${servico} às ${hora}. Te espero! 😊\n📍 ${ENDERECO}`
+}
+
 export function linkWhatsApp(telefone: string, texto: string) {
   const d = telefone.replace(/\D/g, '')
   const num = d.length <= 11 ? `55${d}` : d
