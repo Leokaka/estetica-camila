@@ -370,7 +370,7 @@ export default function AgendamentosPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="lista">
+      <Tabs defaultValue="calendario">
         <TabsList>
           <TabsTrigger value="lista">Lista</TabsTrigger>
           <TabsTrigger value="calendario">Calendário</TabsTrigger>
