@@ -23,12 +23,16 @@ import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados } from '@/lib/agenda'
 import { formatCurrency } from '@/lib/format'
-import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
+import {
+  STATUS_LABELS, STATUS_BADGE_VARIANT,
+  FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
+} from '@/lib/status'
 import { linkWhatsApp, mensagemConfirmacao } from '@/lib/whatsapp'
 
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
-  local: 'quartinho', valor_cobrado: '', observacoes: ''
+  local: 'quartinho', valor_cobrado: '', observacoes: '',
+  forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '',
 }
 
 // Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
@@ -108,6 +112,10 @@ export default function AgendamentosPage() {
       local: ag.local ?? 'quartinho',
       valor_cobrado: String(ag.valor_cobrado),
       observacoes: ag.observacoes ?? '',
+      forma_pagamento: ag.forma_pagamento ?? '',
+      status_pagamento: ag.status_pagamento ?? 'pendente',
+      valor_pago: ag.valor_pago != null ? String(ag.valor_pago) : '',
+      data_prevista_pagamento: ag.data_prevista_pagamento ?? '',
     })
     setDialogOpen(true)
   }
@@ -220,6 +228,10 @@ export default function AgendamentosPage() {
       local: form.local as Agendamento['local'],
       valor_cobrado: Number(form.valor_cobrado),
       observacoes: form.observacoes || null,
+      forma_pagamento: form.forma_pagamento || null,
+      status_pagamento: form.status_pagamento as Agendamento['status_pagamento'],
+      valor_pago: form.status_pagamento === 'parcial' && form.valor_pago ? Number(form.valor_pago) : null,
+      data_prevista_pagamento: form.status_pagamento !== 'pago' && form.data_prevista_pagamento ? form.data_prevista_pagamento : null,
     }
 
     if (editando) {
@@ -353,10 +365,16 @@ export default function AgendamentosPage() {
                         <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]}>
                           {STATUS_LABELS[ag.status as Agendamento['status']]}
                         </Badge>
+                        {ag.status !== 'cancelado' && (
+                          <Badge variant={STATUS_PAGAMENTO_BADGE_VARIANT[(ag.status_pagamento ?? 'pendente') as Agendamento['status_pagamento']]}>
+                            {STATUS_PAGAMENTO_LABELS[(ag.status_pagamento ?? 'pendente') as Agendamento['status_pagamento']]}
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-sm text-muted-foreground truncate">{ag.servico?.nome}</p>
                       <p className="text-xs text-brand-muted-soft">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
+                        {ag.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABELS[ag.forma_pagamento as NonNullable<Agendamento['forma_pagamento']>]}`}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
@@ -684,6 +702,48 @@ export default function AgendamentosPage() {
                 </Select>
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Pagamento</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Button type="button" size="sm" variant={form.status_pagamento === 'pendente' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, status_pagamento: 'pendente' }))}>Pendente</Button>
+                <Button type="button" size="sm" variant={form.status_pagamento === 'parcial' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, status_pagamento: 'parcial' }))}>Parcial</Button>
+                <Button type="button" size="sm" variant={form.status_pagamento === 'pago' ? 'default' : 'outline'} onClick={() => setForm(f => ({ ...f, status_pagamento: 'pago' }))}>Pago</Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Forma de pagamento</Label>
+                <Select value={form.forma_pagamento} onValueChange={v => setForm(f => ({ ...f, forma_pagamento: v ?? '' }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Não informado">
+                      {form.forma_pagamento ? FORMA_PAGAMENTO_LABELS[form.forma_pagamento as keyof typeof FORMA_PAGAMENTO_LABELS] : undefined}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(FORMA_PAGAMENTO_LABELS) as Array<keyof typeof FORMA_PAGAMENTO_LABELS>).map(k => (
+                      <SelectItem key={k} value={k}>{FORMA_PAGAMENTO_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.status_pagamento === 'parcial' ? (
+                <div className="space-y-2">
+                  <Label>Valor já pago (R$)</Label>
+                  <Input type="number" step="0.01" value={form.valor_pago} onChange={e => setForm(f => ({ ...f, valor_pago: e.target.value }))} />
+                </div>
+              ) : form.status_pagamento === 'pendente' ? (
+                <div className="space-y-2">
+                  <Label>Data prometida</Label>
+                  <Input type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
+                </div>
+              ) : null}
+            </div>
+            {form.status_pagamento === 'parcial' && (
+              <div className="space-y-2">
+                <Label>Data prevista pro restante</Label>
+                <Input type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Observações</Label>
               <Textarea value={form.observacoes} onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} />

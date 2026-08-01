@@ -17,3 +17,23 @@ export const STATUS_BADGE_VARIANT: Record<Agendamento['status'], BadgeVariant> =
   realizado: 'info',
   cancelado: 'danger',
 }
+
+export const FORMA_PAGAMENTO_LABELS: Record<NonNullable<Agendamento['forma_pagamento']>, string> = {
+  pix: 'Pix',
+  dinheiro: 'Dinheiro',
+  cartao_debito: 'Cartão Débito',
+  cartao_credito: 'Cartão Crédito',
+  transferencia: 'Transferência',
+}
+
+export const STATUS_PAGAMENTO_LABELS: Record<Agendamento['status_pagamento'], string> = {
+  pago: 'Pago',
+  parcial: 'Pago parcial',
+  pendente: 'Pagamento pendente',
+}
+
+export const STATUS_PAGAMENTO_BADGE_VARIANT: Record<Agendamento['status_pagamento'], BadgeVariant> = {
+  pago: 'success',
+  parcial: 'warning',
+  pendente: 'danger',
+}

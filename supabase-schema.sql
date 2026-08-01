@@ -111,3 +111,15 @@ ON CONFLICT DO NOTHING;
 -- =============================================
 -- ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS local TEXT NOT NULL DEFAULT 'quartinho' CHECK (local IN ('quartinho','karine'));
 -- CREATE INDEX IF NOT EXISTS idx_agendamentos_local ON agendamentos(local);
+
+-- =============================================
+-- MIGRAÇÃO 25/07/2026: controle de pagamento por agendamento
+-- Rode esse bloco no SQL Editor do Supabase (aditivo — não mexe em dado existente,
+-- linhas já cadastradas ficam com status_pagamento = 'pendente' até serem atualizadas)
+-- =============================================
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS forma_pagamento TEXT
+  CHECK (forma_pagamento IN ('pix','dinheiro','cartao_debito','cartao_credito','transferencia'));
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS status_pagamento TEXT NOT NULL DEFAULT 'pendente'
+  CHECK (status_pagamento IN ('pago','parcial','pendente'));
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS valor_pago DECIMAL(10,2);
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS data_prevista_pagamento DATE;

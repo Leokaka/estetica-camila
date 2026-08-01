@@ -32,6 +32,10 @@ export interface Agendamento {
   created_at: string
   cliente?: Cliente
   servico?: Servico
+  forma_pagamento?: 'pix' | 'dinheiro' | 'cartao_debito' | 'cartao_credito' | 'transferencia' | null
+  status_pagamento: 'pago' | 'parcial' | 'pendente'
+  valor_pago?: number | null
+  data_prevista_pagamento?: string | null
 }
 
 export interface Lancamento {
