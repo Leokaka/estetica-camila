@@ -78,6 +78,10 @@ export default function AgendamentosPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Agendamento | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
+  // "Agendar" pra serem todos criados juntos — permite marcar vários procedimentos
+  // pra mesma cliente numa única confirmação, em vez de reabrir o dialog pra cada um.
+  const [fila, setFila] = useState<(typeof EMPTY_FORM)[]>([])
   const [salvando, setSalvando] = useState(false)
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(new Date())
@@ -116,6 +120,7 @@ export default function AgendamentosPage() {
   function abrirNovo(data?: Date) {
     setEditando(null)
     setForm({ ...EMPTY_FORM, data: data ? format(data, 'yyyy-MM-dd') : '' })
+    setFila([])
     setPromo15(false)
     setNovaClienteAberta(false)
     setNovaCliente({ nome: '', telefone: '' })
@@ -124,6 +129,7 @@ export default function AgendamentosPage() {
 
   function abrirEditar(ag: Agendamento) {
     setEditando(ag)
+    setFila([])
     const dt = new Date(ag.data_hora)
     setForm({
       cliente_id: ag.cliente_id,
@@ -143,6 +149,15 @@ export default function AgendamentosPage() {
     setDialogOpen(true)
   }
 
+  // Procedimentos já empilhados na fila (ainda não salvos) que caem num dia — viram
+  // "ocupado" também, pra ela não conseguir marcar dois procedimentos da fila no
+  // mesmo horário sem perceber.
+  function filaComoOcupados(dataStr: string) {
+    return fila
+      .filter(item => item.data === dataStr)
+      .map(item => ({ data_hora: `${item.data}T${item.hora}:00`, servico: servicos.find(s => s.id === item.servico_id) }))
+  }
+
   // Horários possíveis pro serviço+data escolhidos, descontando conflitos existentes.
   // Ao editar, o próprio agendamento não conta como conflito consigo mesmo.
   const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
@@ -150,13 +165,14 @@ export default function AgendamentosPage() {
     if (!form.servico_id || !form.data) return []
     const duracao = servicoEscolhido?.duracao_minutos ?? 60
     const dataObj = new Date(form.data + 'T00:00:00')
-    const ocupados = agendamentosParaOcupados(
-      agendamentos.filter((ag: any) =>
+    const ocupados = agendamentosParaOcupados([
+      ...agendamentos.filter((ag: any) =>
         ag.status !== 'cancelado' &&
         ag.id !== editando?.id &&
         isSameDay(new Date(ag.data_hora), dataObj)
-      )
-    )
+      ),
+      ...filaComoOcupados(form.data),
+    ])
     return horariosDisponiveis({ duracaoMinutos: duracao, ocupados })
   })()
 
@@ -173,13 +189,14 @@ export default function AgendamentosPage() {
 
   function horariosLivresNoDia(dia: Date) {
     if (!servicoEscolhido) return diaFunciona(dia)
-    const ocupados = agendamentosParaOcupados(
-      agendamentos.filter((ag: any) =>
+    const ocupados = agendamentosParaOcupados([
+      ...agendamentos.filter((ag: any) =>
         ag.status !== 'cancelado' &&
         ag.id !== editando?.id &&
         isSameDay(new Date(ag.data_hora), dia)
-      )
-    )
+      ),
+      ...filaComoOcupados(format(dia, 'yyyy-MM-dd')),
+    ])
     return horariosDisponiveis({ duracaoMinutos: servicoEscolhido.duracao_minutos, ocupados }).length > 0
   }
 
@@ -250,24 +267,52 @@ export default function AgendamentosPage() {
     toast.success(`${data.nome} cadastrada!`)
   }
 
+  function paraPayload(f: typeof form) {
+    return {
+      cliente_id: f.cliente_id,
+      servico_id: f.servico_id,
+      data_hora: new Date(`${f.data}T${f.hora}:00`).toISOString(),
+      status: f.status as Agendamento['status'],
+      local: f.local as Agendamento['local'],
+      valor_cobrado: Number(f.valor_cobrado),
+      observacoes: f.observacoes || null,
+      forma_pagamento: f.forma_pagamento || null,
+      status_pagamento: f.status_pagamento as Agendamento['status_pagamento'],
+      valor_pago: f.status_pagamento === 'parcial' && f.valor_pago ? Number(f.valor_pago) : null,
+      data_prevista_pagamento: f.status_pagamento !== 'pago' && f.data_prevista_pagamento ? f.data_prevista_pagamento : null,
+    }
+  }
+
+  const linhaAtualCompleta = !!(form.servico_id && form.data && form.hora && form.valor_cobrado)
+
+  // Empilha o procedimento atual na fila (sem salvar no banco ainda) e libera os
+  // campos pra ela configurar o próximo — mantém cliente e data, já que na prática
+  // é sempre a mesma visita. Só existe pra agendamento novo, nunca em edição.
+  function adicionarProcedimento() {
+    if (!linhaAtualCompleta) {
+      toast.error('Preenche serviço, data, horário e valor antes de adicionar outro procedimento.')
+      return
+    }
+    setFila(fl => [...fl, form])
+    setForm(f => ({
+      ...f,
+      servico_id: '', hora: '', valor_cobrado: '', observacoes: '',
+      forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '', status: 'agendado',
+    }))
+    setPromo15(false)
+    toast.success('Procedimento adicionado — configura o próximo.')
+  }
+
+  function removerDaFila(indice: number) {
+    setFila(fl => fl.filter((_, i) => i !== indice))
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
     setSalvando(true)
-    const payload = {
-      cliente_id: form.cliente_id,
-      servico_id: form.servico_id,
-      data_hora: new Date(`${form.data}T${form.hora}:00`).toISOString(),
-      status: form.status as Agendamento['status'],
-      local: form.local as Agendamento['local'],
-      valor_cobrado: Number(form.valor_cobrado),
-      observacoes: form.observacoes || null,
-      forma_pagamento: form.forma_pagamento || null,
-      status_pagamento: form.status_pagamento as Agendamento['status_pagamento'],
-      valor_pago: form.status_pagamento === 'parcial' && form.valor_pago ? Number(form.valor_pago) : null,
-      data_prevista_pagamento: form.status_pagamento !== 'pago' && form.data_prevista_pagamento ? form.data_prevista_pagamento : null,
-    }
 
     if (editando) {
+      const payload = paraPayload(form)
       const { error } = await supabase.from('agendamentos').update(payload).eq('id', editando.id)
       if (error) toast.error('Erro ao atualizar agendamento')
       else {
@@ -282,32 +327,29 @@ export default function AgendamentosPage() {
         loadData()
       }
     } else {
-      const { data, error } = await supabase.from('agendamentos').insert(payload).select().single()
-      if (error) toast.error('Erro ao criar agendamento')
+      // Junta o que já tá na fila com a linha atual (se ela estiver preenchida) —
+      // permite marcar vários procedimentos pra mesma cliente numa única confirmação.
+      const linhas = linhaAtualCompleta ? [...fila, form] : fila
+      if (linhas.length === 0) {
+        toast.error('Preenche pelo menos um procedimento.')
+        setSalvando(false)
+        return
+      }
+      const payloads = linhas.map(paraPayload)
+      const { data, error } = await supabase.from('agendamentos').insert(payloads).select()
+      if (error) toast.error(payloads.length > 1 ? 'Erro ao criar os agendamentos' : 'Erro ao criar agendamento')
       else {
-        if (payload.status === 'realizado' && data) {
-          const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
-          if (valor > 0) await registrarEntradaFinanceira(data.id, payload, valor)
+        if (data) {
+          for (const row of data) {
+            if (row.status === 'realizado') {
+              const valor = valorRecebidoAoRealizar(row.status_pagamento, row.valor_cobrado, row.valor_pago)
+              if (valor > 0) await registrarEntradaFinanceira(row.id, row, valor)
+            }
+          }
         }
-        // Guarda cliente + data pra oferecer "outro procedimento" sem ela ter que
-        // buscar a cliente de novo — é o fluxo comum quando a cliente marca 2-3
-        // procedimentos numa mesma visita (ex: limpeza + microagulhamento).
-        const clienteId = form.cliente_id
-        const dataUsada = form.data
-        const clienteNome = clientes.find(c => c.id === clienteId)?.nome?.split(' ')[0]
-        toast.success('Agendamento criado!', {
-          action: {
-            label: clienteNome ? `+ Outro procedimento p/ ${clienteNome}` : '+ Outro procedimento',
-            onClick: () => {
-              setEditando(null)
-              setForm({ ...EMPTY_FORM, cliente_id: clienteId, data: dataUsada })
-              setPromo15(false)
-              setNovaClienteAberta(false)
-              setDialogOpen(true)
-            },
-          },
-        })
+        toast.success(payloads.length > 1 ? `${payloads.length} procedimentos agendados!` : 'Agendamento criado!')
         setDialogOpen(false)
+        setFila([])
         loadData()
       }
     }
@@ -706,8 +748,29 @@ export default function AgendamentosPage() {
                 </Combobox>
               )}
             </div>
+
+            {!editando && fila.length > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-brand-gold/40 bg-brand-surface-warm p-2.5">
+                <p className="text-xs font-medium text-brand-terra">Procedimentos já adicionados ({fila.length})</p>
+                {fila.map((item, i) => {
+                  const svc = servicos.find(s => s.id === item.servico_id)
+                  return (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{svc?.nome} · {format(new Date(item.data + 'T00:00:00'), 'dd/MM')} às {item.hora}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-medium">{formatCurrency(Number(item.valor_cobrado))}</span>
+                        <button type="button" onClick={() => removerDaFila(i)} className="text-danger hover:opacity-70" title="Remover">
+                          <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="ag-servico">Serviço *</Label>
+              <Label htmlFor="ag-servico">Serviço *{fila.length > 0 ? ` (procedimento ${fila.length + 1})` : ''}</Label>
               <Combobox
                 items={servicos.map(s => s.id)}
                 value={form.servico_id || null}
@@ -883,10 +946,36 @@ export default function AgendamentosPage() {
               <Label htmlFor="ag-observacoes">Observações</Label>
               <Textarea id="ag-observacoes" value={form.observacoes} onChange={e => setForm(f => ({ ...f, observacoes: e.target.value }))} rows={2} />
             </div>
+            {!editando && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={!form.cliente_id || !linhaAtualCompleta}
+                onClick={adicionarProcedimento}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Adicionar outro procedimento pra essa cliente
+              </Button>
+            )}
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="flex-1" disabled={salvando || !form.cliente_id || !form.servico_id || !form.data || !form.hora}>
-                {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Agendar'}
+              <Button
+                type="submit"
+                className="flex-1"
+                disabled={
+                  salvando || !form.cliente_id ||
+                  (editando
+                    ? (!form.servico_id || !form.data || !form.hora)
+                    : (fila.length === 0 && !linhaAtualCompleta))
+                }
+              >
+                {salvando
+                  ? 'Salvando...'
+                  : editando
+                  ? 'Salvar'
+                  : fila.length + (linhaAtualCompleta ? 1 : 0) > 1
+                  ? `Agendar ${fila.length + (linhaAtualCompleta ? 1 : 0)} procedimentos`
+                  : 'Agendar'}
               </Button>
             </div>
           </form>
