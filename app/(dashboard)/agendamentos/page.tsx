@@ -289,7 +289,24 @@ export default function AgendamentosPage() {
           const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
           if (valor > 0) await registrarEntradaFinanceira(data.id, payload, valor)
         }
-        toast.success('Agendamento criado!')
+        // Guarda cliente + data pra oferecer "outro procedimento" sem ela ter que
+        // buscar a cliente de novo — é o fluxo comum quando a cliente marca 2-3
+        // procedimentos numa mesma visita (ex: limpeza + microagulhamento).
+        const clienteId = form.cliente_id
+        const dataUsada = form.data
+        const clienteNome = clientes.find(c => c.id === clienteId)?.nome?.split(' ')[0]
+        toast.success('Agendamento criado!', {
+          action: {
+            label: clienteNome ? `+ Outro procedimento p/ ${clienteNome}` : '+ Outro procedimento',
+            onClick: () => {
+              setEditando(null)
+              setForm({ ...EMPTY_FORM, cliente_id: clienteId, data: dataUsada })
+              setPromo15(false)
+              setNovaClienteAberta(false)
+              setDialogOpen(true)
+            },
+          },
+        })
         setDialogOpen(false)
         loadData()
       }
