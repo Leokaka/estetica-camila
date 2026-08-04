@@ -93,6 +93,7 @@ export default function AgendamentosPage() {
   const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string }>({ nome: '', telefone: '' })
   const [salvandoCliente, setSalvandoCliente] = useState(false)
   const [acao, setAcao] = useState<{ tipo: AcaoTipo; ag: Agendamento } | null>(null)
+  const [processandoAcao, setProcessandoAcao] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -401,8 +402,13 @@ export default function AgendamentosPage() {
   }
 
   async function confirmarAcao() {
-    if (!acao) return
+    // Trava contra clique duplo (comum no celular, tocar 2x esperando resposta) —
+    // sem isso, dois cliques rápidos no "Confirmar" disparavam duas chamadas antes da
+    // primeira terminar, cada uma lançando sua própria entrada no financeiro e
+    // duplicando o valor recebido pro mesmo atendimento.
+    if (!acao || processandoAcao) return
     const { tipo, ag } = acao
+    setProcessandoAcao(true)
 
     if (tipo === 'realizado') {
       // O botão rápido assume pagamento em dinheiro na hora, igual sempre foi — só
@@ -426,6 +432,7 @@ export default function AgendamentosPage() {
       if (error) toast.error('Erro ao excluir')
       else { toast.success('Agendamento excluído'); loadData() }
     }
+    setProcessandoAcao(false)
     setAcao(null)
   }
 
@@ -1045,12 +1052,13 @@ export default function AgendamentosPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogCancel disabled={processandoAcao}>Voltar</AlertDialogCancel>
             <AlertDialogAction
               variant={acao?.tipo === 'realizado' ? 'default' : 'destructive'}
               onClick={confirmarAcao}
+              disabled={processandoAcao}
             >
-              Confirmar
+              {processandoAcao ? 'Confirmando...' : 'Confirmar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

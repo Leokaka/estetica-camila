@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DollarSign, Users, TrendingUp, TrendingDown,
-  Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle, CircleDollarSign,
+  Gift, AlertCircle, Scissors, CalendarCheck, CheckCircle2, MessageCircle, CircleDollarSign, ArrowRight,
 } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, isToday, addDays, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -196,6 +197,9 @@ export default function DashboardPage() {
     ? ((stats.recebido_mes - stats.recebido_mes_anterior) / stats.recebido_mes_anterior * 100).toFixed(1)
     : null
 
+  const horaAtual = new Date().getHours()
+  const saudacao = horaAtual < 12 ? 'Bom dia' : horaAtual < 18 ? 'Boa tarde' : 'Boa noite'
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -207,16 +211,21 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Olá, Camila</h1>
+        <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">{saudacao}, Camila</h1>
         <p className="text-muted-foreground capitalize">{format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}</p>
       </div>
 
       {/* Central do dia — o que precisa de ação agora */}
       <Card className="border-brand-gold/40">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarCheck className="h-4 w-4 text-brand-medium" />
-            Próximos Atendimentos
+          <CardTitle className="flex items-center justify-between text-base">
+            <span className="flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-brand-medium" />
+              Próximos Atendimentos
+            </span>
+            <Link href="/agendamentos" className="flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              Ver agenda completa <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -314,8 +323,51 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Cards de métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      {pagamentosAtrasados.length > 0 && (
+        <Card className="border-danger/40">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CircleDollarSign className="h-4 w-4 text-danger" />
+              Pagamentos em Atraso
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pagamentosAtrasados.map((ag: any) => {
+                const saldo = ag.status_pagamento === 'parcial'
+                  ? Number(ag.valor_cobrado) - Number(ag.valor_pago ?? 0)
+                  : Number(ag.valor_cobrado)
+                const diasAtraso = differenceInDays(new Date(), new Date(ag.data_prevista_pagamento + 'T00:00:00'))
+                return (
+                  <div key={ag.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-danger-soft">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{ag.cliente?.nome}</p>
+                      <p className="text-xs text-danger">{formatCurrency(saldo)} · {diasAtraso}d de atraso</p>
+                    </div>
+                    {ag.cliente?.telefone && (
+                      <Button
+                        size="icon-sm" variant="outline" className="shrink-0 text-danger"
+                        title="Cobrar no WhatsApp"
+                        onClick={() => window.open(
+                          linkWhatsApp(ag.cliente.telefone, mensagemCobranca(ag.cliente.nome, ag.servico?.nome ?? 'procedimento', saldo)),
+                          '_blank'
+                        )}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cards de métricas — agrupadas por assunto (financeiro vs. clientes) em vez de
+          uma fileira única, pra facilitar a leitura rápida de cada grupo. */}
+      <p className="text-xs font-medium uppercase tracking-wide text-brand-muted-soft">Financeiro do mês</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-brand-text-soft">Recebido no Mês</CardTitle>
@@ -356,6 +408,10 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+      </div>
+
+      <p className="text-xs font-medium uppercase tracking-wide text-brand-muted-soft">Clientes &amp; atendimentos</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-brand-text-soft">Total de Clientes</CardTitle>
@@ -388,11 +444,11 @@ export default function DashboardPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${v}`} />
                 <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                <Bar dataKey="faturamento" fill="#C9A96E" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="faturamento" fill="var(--brand-gold)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -484,47 +540,6 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      {pagamentosAtrasados.length > 0 && (
-        <Card className="border-danger/40">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <CircleDollarSign className="h-4 w-4 text-danger" />
-              Pagamentos em Atraso
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {pagamentosAtrasados.map((ag: any) => {
-                const saldo = ag.status_pagamento === 'parcial'
-                  ? Number(ag.valor_cobrado) - Number(ag.valor_pago ?? 0)
-                  : Number(ag.valor_cobrado)
-                const diasAtraso = differenceInDays(new Date(), new Date(ag.data_prevista_pagamento + 'T00:00:00'))
-                return (
-                  <div key={ag.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-danger-soft">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-dark truncate">{ag.cliente?.nome}</p>
-                      <p className="text-xs text-danger">{formatCurrency(saldo)} · {diasAtraso}d de atraso</p>
-                    </div>
-                    {ag.cliente?.telefone && (
-                      <Button
-                        size="icon-sm" variant="outline" className="shrink-0 text-danger"
-                        title="Cobrar no WhatsApp"
-                        onClick={() => window.open(
-                          linkWhatsApp(ag.cliente.telefone, mensagemCobranca(ag.cliente.nome, ag.servico?.nome ?? 'procedimento', saldo)),
-                          '_blank'
-                        )}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

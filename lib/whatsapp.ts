@@ -20,6 +20,11 @@ export function mensagemLembrete(nome: string, servico: string, dataHora: Date) 
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSó lembrando do seu horário amanhã: ${servico} às ${hora}. Te espero! 😊\n📍 ${ENDERECO}`
 }
 
+/** Abertura de conversa avulsa, sem contexto de agendamento — usada no card de Clientes. */
+export function mensagemGenerica(nome: string) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛`
+}
+
 export function linkWhatsApp(telefone: string, texto: string) {
   const d = telefone.replace(/\D/g, '')
   const num = d.length <= 11 ? `55${d}` : d

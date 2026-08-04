@@ -32,6 +32,15 @@ function margemClasse(margem: number) {
   return 'text-danger'
 }
 
+// Mesmo formato usado no card (ex: "1h15min") — mostrado como preview ao digitar
+// a duração em minutos, pra ela não precisar salvar pra ver como vai ficar.
+function formatarDuracao(minutos: number) {
+  if (!minutos) return ''
+  return minutos >= 60
+    ? `${Math.floor(minutos / 60)}h${minutos % 60 > 0 ? ` ${minutos % 60}min` : ''}`
+    : `${minutos} min`
+}
+
 export default function ServicosPage() {
   const supabase = createClient()
   const [servicos, setServicos] = useState<Servico[]>([])
@@ -191,9 +200,7 @@ export default function ServicosPage() {
 
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" />
-                    {s.duracao_minutos >= 60
-                      ? `${Math.floor(s.duracao_minutos / 60)}h${s.duracao_minutos % 60 > 0 ? ` ${s.duracao_minutos % 60}min` : ''}`
-                      : `${s.duracao_minutos} min`}
+                    {formatarDuracao(s.duracao_minutos)}
                   </div>
 
                   <div className="flex gap-2 pt-1">
@@ -247,7 +254,12 @@ export default function ServicosPage() {
             {/* Calculadora de lucro removida hoje (inauguração, tela pode ser vista por clientes) */}
 
             <div className="space-y-2">
-              <Label htmlFor="servico-duracao">Duração (minutos)</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="servico-duracao">Duração (minutos)</Label>
+                {form.duracao_minutos && (
+                  <span className="text-xs text-brand-muted-soft">{formatarDuracao(Number(form.duracao_minutos))}</span>
+                )}
+              </div>
               <Input id="servico-duracao" type="number" min="5" step="5" value={form.duracao_minutos} onChange={e => setForm({ ...form, duracao_minutos: e.target.value })} />
             </div>
             <div className="space-y-2">

@@ -290,8 +290,13 @@ export default function FinanceiroPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{l.descricao}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <Badge variant="outline" className="text-xs px-1.5 py-0">{l.categoria}</Badge>
+                      {l.agendamento_id && (
+                        <Badge variant="info" className="text-xs px-1.5 py-0" title="Lançado automaticamente ao marcar o agendamento como realizado">
+                          De um agendamento
+                        </Badge>
+                      )}
                       <span className="text-xs text-brand-muted-soft">{format(new Date(l.data + 'T00:00:00'), 'dd/MM/yyyy')}</span>
                     </div>
                   </div>
@@ -421,6 +426,10 @@ export default function FinanceiroPage() {
             <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
             <AlertDialogDescription>
               Isso remove &quot;{excluindo?.descricao}&quot; do financeiro do mês e não pode ser desfeito.
+              {excluindo?.agendamento_id && (
+                <> <strong>Esse lançamento veio de um agendamento</strong> marcado como realizado —
+                excluir aqui não muda o status de pagamento dele, só some daqui do financeiro.</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

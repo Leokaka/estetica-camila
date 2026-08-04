@@ -14,14 +14,24 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, User, Download } from 'lucide-react'
-import { format, differenceInYears } from 'date-fns'
+import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, Download, MessageCircle } from 'lucide-react'
+import { format, differenceInYears, differenceInDays } from 'date-fns'
 import type { Cliente, Agendamento } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { exportarCSV } from '@/lib/csv'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
+import { linkWhatsApp, mensagemGenerica } from '@/lib/whatsapp'
 
 const EMPTY_FORM = { nome: '', telefone: '', email: '', data_nascimento: '', observacoes: '' }
+
+// Iniciais pro avatar do card — mais fácil de diferenciar de relance numa lista longa
+// do que um ícone genérico igual pra todo mundo.
+function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/)
+  const primeira = partes[0]?.[0] ?? ''
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : ''
+  return (primeira + ultima).toUpperCase()
+}
 
 export default function ClientesPage() {
   const supabase = createClient()
@@ -179,8 +189,8 @@ export default function ClientesPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent">
-                        <User className="h-5 w-5 text-primary" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent">
+                        <span className="text-sm font-semibold text-primary">{iniciais(c.nome)}</span>
                       </div>
                       <div>
                         <CardTitle className="text-base">{c.nome}</CardTitle>
@@ -210,6 +220,13 @@ export default function ClientesPage() {
                   <div className="flex gap-2 pt-2">
                     <Button size="sm" variant="outline" className="flex-1" onClick={() => loadHistorico(c)}>
                       <History className="h-3.5 w-3.5 mr-1" /> Histórico
+                    </Button>
+                    <Button
+                      size="sm" variant="outline" className="text-success"
+                      title="Chamar no WhatsApp"
+                      onClick={() => window.open(linkWhatsApp(c.telefone, mensagemGenerica(c.nome)), '_blank')}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => abrirEditar(c)}>
                       <Edit className="h-3.5 w-3.5" />
@@ -264,29 +281,57 @@ export default function ClientesPage() {
 
       {/* Dialog de histórico */}
       <Dialog open={histOpen} onOpenChange={setHistOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Histórico — {clienteHist?.nome}</DialogTitle>
           </DialogHeader>
           {historico.length === 0 ? (
             <p className="text-center text-brand-muted-soft py-8">Nenhum atendimento registrado</p>
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {historico.map((ag: any) => (
-                <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border border-brand-border">
-                  <div>
-                    <p className="font-medium text-sm">{ag.servico?.nome}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(ag.data_hora), 'dd/MM/yyyy HH:mm')}</p>
+            <>
+              {(() => {
+                // historico vem ordenado por data_hora desc misturando passado e futuro —
+                // "última visita" só faz sentido olhando pra quem já realizou (senão um
+                // agendamento futuro aparece como "-6d", o que não quer dizer nada).
+                const realizados = historico.filter((ag: any) => ag.status === 'realizado')
+                const totalGasto = realizados.reduce((s: number, ag: any) => s + Number(ag.valor_cobrado), 0)
+                const ultimaRealizada = realizados[0]
+                return (
+                  <div className="grid grid-cols-3 gap-2 rounded-lg bg-brand-surface p-3 text-center">
+                    <div>
+                      <p className="text-lg font-bold text-brand-dark">{realizados.length}</p>
+                      <p className="text-[11px] text-brand-muted-soft">atendimentos</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-brand-dark">{formatCurrency(totalGasto)}</p>
+                      <p className="text-[11px] text-brand-muted-soft">total gasto</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-brand-dark">
+                        {ultimaRealizada ? `${differenceInDays(new Date(), new Date(ultimaRealizada.data_hora))}d` : '—'}
+                      </p>
+                      <p className="text-[11px] text-brand-muted-soft">última visita</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-sm text-primary">{formatCurrency(ag.valor_cobrado)}</p>
-                    <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]} className="text-xs">
-                      {STATUS_LABELS[ag.status as Agendamento['status']]}
-                    </Badge>
+                )
+              })()}
+              <div className="space-y-3 max-h-96 overflow-y-auto mt-3">
+                {historico.map((ag: any) => (
+                  <div key={ag.id} className="flex items-center justify-between p-3 rounded-lg border border-brand-border">
+                    <div>
+                      <p className="font-medium text-sm">{ag.servico?.nome}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(ag.data_hora), 'dd/MM/yyyy HH:mm')}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-sm text-primary">{formatCurrency(ag.valor_cobrado)}</p>
+                      <Badge variant={STATUS_BADGE_VARIANT[ag.status as Agendamento['status']]} className="text-xs">
+                        {STATUS_LABELS[ag.status as Agendamento['status']]}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
