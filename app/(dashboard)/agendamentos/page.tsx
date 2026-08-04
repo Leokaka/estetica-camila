@@ -85,6 +85,7 @@ export default function AgendamentosPage() {
   const [salvando, setSalvando] = useState(false)
   const [mesAtual, setMesAtual] = useState(new Date())
   const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(new Date())
+  const [mostrarCancelados, setMostrarCancelados] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [buscaCliente, setBuscaCliente] = useState('')
   const [promo15, setPromo15] = useState(false)
@@ -158,23 +159,28 @@ export default function AgendamentosPage() {
       .map(item => ({ data_hora: `${item.data}T${item.hora}:00`, servico: servicos.find(s => s.id === item.servico_id) }))
   }
 
-  // Horários possíveis pro serviço+data escolhidos, descontando conflitos existentes.
-  // Ao editar, o próprio agendamento não conta como conflito consigo mesmo.
-  const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
-  const horariosDoServico = (() => {
-    if (!form.servico_id || !form.data) return []
-    const duracao = servicoEscolhido?.duracao_minutos ?? 60
-    const dataObj = new Date(form.data + 'T00:00:00')
+  // Horários possíveis pro serviço+data escolhidos, descontando conflitos existentes
+  // (agendamentos já salvos + procedimentos já empilhados na fila). Ao editar, o
+  // próprio agendamento não conta como conflito consigo mesmo. Extraída como função
+  // (em vez de só o valor memoizado) porque também é usada pra sugerir automaticamente
+  // o próximo horário livre ao adicionar o 2º+ procedimento — ver onSelectServico.
+  function horariosParaServicoData(servicoId: string, data: string): string[] {
+    if (!servicoId || !data) return []
+    const duracao = servicos.find(s => s.id === servicoId)?.duracao_minutos ?? 60
+    const dataObj = new Date(data + 'T00:00:00')
     const ocupados = agendamentosParaOcupados([
       ...agendamentos.filter((ag: any) =>
         ag.status !== 'cancelado' &&
         ag.id !== editando?.id &&
         isSameDay(new Date(ag.data_hora), dataObj)
       ),
-      ...filaComoOcupados(form.data),
+      ...filaComoOcupados(data),
     ])
     return horariosDisponiveis({ duracaoMinutos: duracao, ocupados })
-  })()
+  }
+
+  const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
+  const horariosDoServico = horariosParaServicoData(form.servico_id, form.data)
 
   // Tira rápida de dias do mês carregado, pra sugerir data ao marcar ou reagendar
   // sem precisar abrir o calendário nativo. Só cobre o mês em exibição (mesAtual).
@@ -207,12 +213,27 @@ export default function AgendamentosPage() {
     const id = servicoId ?? ''
     const svc = servicos.find(s => s.id === id)
     const base = svc ? Number(svc.preco) : null
+    const trocouServico = id !== form.servico_id
+    // Do 2º procedimento da fila em diante, sugere o horário logo depois que o ÚLTIMO
+    // procedimento já empilhado termina (não o primeiro horário livre do dia inteiro —
+    // isso ia sugerir um furo antes, tipo 07:00, em vez de encadear). Ela ainda pode
+    // trocar o horário sugerido se quiser.
+    const horaSugerida = (() => {
+      if (!trocouServico || fila.length === 0 || !form.data) return undefined
+      const itensNoDia = fila.filter(item => item.data === form.data)
+      if (itensNoDia.length === 0) return undefined
+      const ultimo = itensNoDia[itensNoDia.length - 1]
+      const duracaoUltimo = servicos.find(s => s.id === ultimo.servico_id)?.duracao_minutos ?? 60
+      const fimUltimoMin = paraMinutos(ultimo.hora) + duracaoUltimo
+      const disponiveis = horariosParaServicoData(id, form.data)
+      return disponiveis.find(h => paraMinutos(h) >= fimUltimoMin) ?? disponiveis[0]
+    })()
     setForm(f => ({
       ...f,
       servico_id: id,
       // Duração pode mudar com o serviço — reconfere o horário em vez de manter um
       // horário que pode não caber mais (passar do fechamento ou bater em outro agendamento).
-      hora: id !== f.servico_id ? '' : f.hora,
+      hora: horaSugerida ?? (trocouServico ? '' : f.hora),
       valor_cobrado: base !== null ? String(promo15 ? precoPromo(base) : base) : f.valor_cobrado,
     }))
   }
@@ -410,11 +431,18 @@ export default function AgendamentosPage() {
 
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mesAtual), end: endOfMonth(mesAtual) })
   const buscaAtiva = buscaCliente.trim().toLowerCase()
-  const agendamentosDoDia = diaSelecionado
+  const agendamentosDoDiaTodos = diaSelecionado
     ? agendamentos
         .filter(ag => isSameDay(new Date(ag.data_hora), diaSelecionado))
         .filter(ag => !buscaAtiva || (ag as any).cliente?.nome?.toLowerCase().includes(buscaAtiva))
     : []
+  // Cancelados ficam escondidos da timeline por padrão — misturados com os ativos eles
+  // confundem a leitura rápida do dia (parece que o horário tá ocupado quando não tá
+  // mais). Continuam a um clique de distância pra quem quiser conferir o histórico.
+  const agendamentosDoDiaCancelados = agendamentosDoDiaTodos.filter(ag => ag.status === 'cancelado')
+  const agendamentosDoDia = mostrarCancelados
+    ? agendamentosDoDiaTodos
+    : agendamentosDoDiaTodos.filter(ag => ag.status !== 'cancelado')
 
   const hojeAgendamentos = agendamentos.filter(ag => ag.status !== 'cancelado' && isSameDay(new Date(ag.data_hora), new Date()))
   const hojeConfirmados = hojeAgendamentos.filter(ag => ag.status === 'confirmado' || ag.status === 'realizado').length
@@ -562,7 +590,7 @@ export default function AgendamentosPage() {
                 <button
                   type="button"
                   className="ml-auto text-xs font-medium text-primary hover:underline"
-                  onClick={() => setDiaSelecionado(new Date())}
+                  onClick={() => { setDiaSelecionado(new Date()); setMostrarCancelados(false) }}
                 >
                   Ver hoje
                 </button>
@@ -606,7 +634,7 @@ export default function AgendamentosPage() {
                 return (
                   <button
                     key={dia.toISOString()}
-                    onClick={() => setDiaSelecionado(selecionado ? null : dia)}
+                    onClick={() => { setDiaSelecionado(selecionado ? null : dia); setMostrarCancelados(false) }}
                     className={`relative p-2 rounded-lg text-sm text-center transition-all min-h-15 flex flex-col items-center gap-1
                       ${hoje && !selecionado ? 'ring-2 ring-brand-gold' : ''}
                       ${selecionado ? 'bg-primary text-primary-foreground' : fechado ? 'text-muted-foreground/50 hover:bg-muted' : `hover:bg-muted ${intensidadeDia(agsNoDia.length)}`}
@@ -640,7 +668,16 @@ export default function AgendamentosPage() {
                     )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
+                  {agendamentosDoDiaCancelados.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary hover:underline"
+                      onClick={() => setMostrarCancelados(v => !v)}
+                    >
+                      {mostrarCancelados ? 'Ocultar' : 'Mostrar'} {agendamentosDoDiaCancelados.length} cancelado{agendamentosDoDiaCancelados.length > 1 ? 's' : ''}
+                    </button>
+                  )}
                   {agendamentosDoDia.length === 0 ? (
                     <p className="text-sm text-brand-muted-soft text-center py-4">Nenhum agendamento neste dia</p>
                   ) : (() => {
@@ -958,6 +995,17 @@ export default function AgendamentosPage() {
               </Button>
             )}
             <div className="flex gap-2 pt-2">
+              {editando && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-danger px-3"
+                  title="Excluir agendamento"
+                  onClick={() => { setDialogOpen(false); setAcao({ tipo: 'excluir', ag: editando }) }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button
                 type="submit"
