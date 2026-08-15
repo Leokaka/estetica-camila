@@ -27,7 +27,7 @@ import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
   FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
 } from '@/lib/status'
-import { TAXA_CARTAO_DEBITO, taxaCartaoCredito } from '@/lib/taxas-cartao'
+import { TAXA_CARTAO_DEBITO, taxaCartaoCredito, type CanalCartao } from '@/lib/taxas-cartao'
 import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/whatsapp'
 
 // 'local' saiu da UI em 01/08/2026 — Camila fechou o quartinho e o acordo com a Karine,
@@ -41,7 +41,7 @@ const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
   local: 'quartinho', valor_cobrado: '', observacoes: '',
   forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '',
-  parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '',
+  parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '', canal_cartao: 'maquininha',
 }
 
 // Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
@@ -154,7 +154,7 @@ export default function AgendamentosPage() {
       data_prevista_pagamento: ag.data_prevista_pagamento ?? '',
       parcelas: ag.parcelas != null ? String(ag.parcelas) : '1',
       taxa_cartao_assumida_por: ag.taxa_cartao_assumida_por ?? 'cliente',
-      valor_liquido_cartao: '',
+      valor_liquido_cartao: '', canal_cartao: 'maquininha',
     })
     setNovaClienteAberta(false)
     setDialogOpen(true)
@@ -331,7 +331,7 @@ export default function AgendamentosPage() {
       ...f,
       servico_id: '', hora: '', valor_cobrado: '', observacoes: '',
       forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '', status: 'agendado',
-      parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '',
+      parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '', canal_cartao: 'maquininha',
     }))
     setPromo15(false)
     toast.success('Procedimento adicionado — configura o próximo.')
@@ -356,7 +356,7 @@ export default function AgendamentosPage() {
           const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
           const valorLiquidoCartao = form.forma_pagamento === 'cartao_credito' && form.valor_liquido_cartao
             ? Number(form.valor_liquido_cartao) : null
-          if (valor > 0) await registrarEntradaFinanceira(editando.id, { ...payload, valor_liquido_cartao: valorLiquidoCartao }, valor)
+          if (valor > 0) await registrarEntradaFinanceira(editando.id, { ...payload, valor_liquido_cartao: valorLiquidoCartao, canal_cartao: form.canal_cartao }, valor)
         }
         toast.success('Agendamento atualizado!')
         setDialogOpen(false)
@@ -386,7 +386,7 @@ export default function AgendamentosPage() {
               const linha = linhas[i]
               const valorLiquidoCartao = linha?.forma_pagamento === 'cartao_credito' && linha.valor_liquido_cartao
                 ? Number(linha.valor_liquido_cartao) : null
-              if (valor > 0) await registrarEntradaFinanceira(row.id, { ...row, valor_liquido_cartao: valorLiquidoCartao }, valor)
+              if (valor > 0) await registrarEntradaFinanceira(row.id, { ...row, valor_liquido_cartao: valorLiquidoCartao, canal_cartao: linha?.canal_cartao }, valor)
             }
           }
         }
@@ -408,20 +408,18 @@ export default function AgendamentosPage() {
     return 0
   }
 
-  // Quanto some do valor recebido por causa da taxa da maquininha. No débito é sempre
-  // custo da Camila. No crédito, a taxa "base" (equivalente a 1x) É SEMPRE custo dela —
-  // é o custo de aceitar cartão, existe independente de parcelamento — mesmo quando ela
-  // marca que a cliente assume o parcelamento (a cliente aí só cobre o juros extra de
-  // parcelar, pagando um pouco mais em cada parcela; a taxa base continua sendo da
-  // Camila). Só quando ela marca que assume o parcelamento também é que a taxa sobe pra
-  // taxa cheia daquele número de parcelas. Confirmado com um caso real (venda da Aninha,
-  // 10/08: R$102 em 2x, cliente assumiu o parcelamento, e mesmo assim só chegou R$97,73
-  // pra Camila — R$4,27 de taxa base que ela pagou de qualquer jeito).
-  function valorTaxaCartao(formaPagamento: string | null, valorRecebido: number, parcelas: number | null, assumidaPor: string | null) {
+  // Quanto some do valor recebido por causa da taxa. No débito é sempre custo da Camila
+  // (só existe físico, na maquininha). No crédito, a taxa "base" (equivalente a 1x) É
+  // SEMPRE custo dela — mesmo quando a cliente assume o parcelamento (aí ela só cobre o
+  // juros extra, pagando um pouco mais em cada parcela; a base continua sendo da Camila).
+  // Maquininha física e link de pagamento (cobrança online) têm tabelas de taxa
+  // diferentes — a InfinitePay cobra mais no link (confirmado com caso real: venda paga
+  // por link saiu bem mais cara que uma equivalente na maquininha).
+  function valorTaxaCartao(formaPagamento: string | null, valorRecebido: number, parcelas: number | null, assumidaPor: string | null, canal: CanalCartao = 'maquininha') {
     if (valorRecebido <= 0) return 0
     if (formaPagamento === 'cartao_debito') return valorRecebido * TAXA_CARTAO_DEBITO / 100
     if (formaPagamento === 'cartao_credito') {
-      const taxa = assumidaPor === 'profissional' ? taxaCartaoCredito(parcelas ?? 1) : taxaCartaoCredito(1)
+      const taxa = assumidaPor === 'profissional' ? taxaCartaoCredito(parcelas ?? 1, canal) : taxaCartaoCredito(1, canal)
       return valorRecebido * taxa / 100
     }
     return 0
@@ -447,12 +445,13 @@ export default function AgendamentosPage() {
     // exatamente). Senão, cai pra estimativa automática.
     const taxa = payload.valor_liquido_cartao != null
       ? Math.max(valor - payload.valor_liquido_cartao, 0)
-      : valorTaxaCartao(payload.forma_pagamento, valor, payload.parcelas, payload.taxa_cartao_assumida_por)
+      : valorTaxaCartao(payload.forma_pagamento, valor, payload.parcelas, payload.taxa_cartao_assumida_por, payload.canal_cartao)
     if (taxa >= 0.01) {
       const parcelasTag = payload.forma_pagamento === 'cartao_credito' && Number(payload.parcelas) > 1 ? ` ${payload.parcelas}x` : ''
+      const canalTag = payload.canal_cartao === 'link' ? ' (link)' : ''
       await supabase.from('lancamentos').insert({
         tipo: 'saida',
-        descricao: `Taxa de cartão${parcelasTag} - ${desc}`,
+        descricao: `Taxa de cartão${parcelasTag}${canalTag} - ${desc}`,
         valor: Number(taxa.toFixed(2)),
         categoria: 'Taxa de Cartão',
         data,
@@ -1089,9 +1088,33 @@ export default function AgendamentosPage() {
                     extra de parcelar (se for a cliente, ela paga um pouco mais em cada parcela).
                   </p>
                 </div>
+                <div className="col-span-2 space-y-2">
+                  <Label>Cobrado por</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button" size="sm"
+                      variant={form.canal_cartao === 'maquininha' ? 'default' : 'outline'}
+                      onClick={() => setForm(f => ({ ...f, canal_cartao: 'maquininha' }))}
+                    >
+                      Maquininha
+                    </Button>
+                    <Button
+                      type="button" size="sm"
+                      variant={form.canal_cartao === 'link' ? 'default' : 'outline'}
+                      onClick={() => setForm(f => ({ ...f, canal_cartao: 'link' }))}
+                    >
+                      Link de pagamento
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-brand-muted-soft">
+                    Taxa diferente pra cada canal — link de pagamento (cobrança online) é mais
+                    caro que passar na maquininha física.
+                  </p>
+                </div>
                 {form.valor_cobrado && (() => {
+                  const canal = form.canal_cartao as CanalCartao
                   const taxaPct = form.taxa_cartao_assumida_por === 'profissional'
-                    ? taxaCartaoCredito(Number(form.parcelas || 1)) : taxaCartaoCredito(1)
+                    ? taxaCartaoCredito(Number(form.parcelas || 1), canal) : taxaCartaoCredito(1, canal)
                   const taxaEstimada = Number(form.valor_cobrado) * taxaPct / 100
                   const liquidoEstimado = Number(form.valor_cobrado) - taxaEstimada
                   return (
