@@ -33,14 +33,15 @@ import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/
 // 'local' saiu da UI em 01/08/2026 — Camila fechou o quartinho e o acordo com a Karine,
 // hoje só atende no espaço próprio dela. Campo mantido fixo em 'quartinho' só pra bater
 // com a constraint do banco (NOT NULL); "karine" existe só em dado histórico de abr-jun/2026.
-// taxa_cartao_assumida_por começa em 'cliente' (não desconta nada) — é uma escolha que
-// ela precisa marcar ativamente pra "Eu assumo", igual forma_pagamento já começa vazio.
-// Errar pro lado de não descontar é mais seguro que criar uma despesa fantasma.
+// taxa_cartao_assumida_por começa em 'cliente' — é a taxa base (equivalente a 1x), a
+// mais baixa das duas opções; só sobe pra taxa cheia do parcelamento se ela marcar
+// ativamente "Eu assumo". Ver valorTaxaCartao() — mesmo com 'cliente', a taxa base
+// nunca é zero (confirmado com caso real, ver memória do projeto).
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
   local: 'quartinho', valor_cobrado: '', observacoes: '',
   forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '',
-  parcelas: '1', taxa_cartao_assumida_por: 'cliente',
+  parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '',
 }
 
 // Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
@@ -153,6 +154,7 @@ export default function AgendamentosPage() {
       data_prevista_pagamento: ag.data_prevista_pagamento ?? '',
       parcelas: ag.parcelas != null ? String(ag.parcelas) : '1',
       taxa_cartao_assumida_por: ag.taxa_cartao_assumida_por ?? 'cliente',
+      valor_liquido_cartao: '',
     })
     setNovaClienteAberta(false)
     setDialogOpen(true)
@@ -329,7 +331,7 @@ export default function AgendamentosPage() {
       ...f,
       servico_id: '', hora: '', valor_cobrado: '', observacoes: '',
       forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '', status: 'agendado',
-      parcelas: '1', taxa_cartao_assumida_por: 'cliente',
+      parcelas: '1', taxa_cartao_assumida_por: 'cliente', valor_liquido_cartao: '',
     }))
     setPromo15(false)
     toast.success('Procedimento adicionado — configura o próximo.')
@@ -352,7 +354,9 @@ export default function AgendamentosPage() {
         // toda vez que um agendamento já realizado é apenas editado de novo.
         if (payload.status === 'realizado' && editando.status !== 'realizado') {
           const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
-          if (valor > 0) await registrarEntradaFinanceira(editando.id, payload, valor)
+          const valorLiquidoCartao = form.forma_pagamento === 'cartao_credito' && form.valor_liquido_cartao
+            ? Number(form.valor_liquido_cartao) : null
+          if (valor > 0) await registrarEntradaFinanceira(editando.id, { ...payload, valor_liquido_cartao: valorLiquidoCartao }, valor)
         }
         toast.success('Agendamento atualizado!')
         setDialogOpen(false)
@@ -372,10 +376,17 @@ export default function AgendamentosPage() {
       if (error) toast.error(payloads.length > 1 ? 'Erro ao criar os agendamentos' : 'Erro ao criar agendamento')
       else {
         if (data) {
-          for (const row of data) {
+          // `data` (retorno do insert) só tem colunas do banco — valor_liquido_cartao
+          // não é persistido, então pareia por posição com `linhas` (mesma ordem do
+          // insert) pra recuperar o que ela digitou no formulário de cada linha.
+          for (let i = 0; i < data.length; i++) {
+            const row: any = data[i]
             if (row.status === 'realizado') {
               const valor = valorRecebidoAoRealizar(row.status_pagamento, row.valor_cobrado, row.valor_pago)
-              if (valor > 0) await registrarEntradaFinanceira(row.id, row, valor)
+              const linha = linhas[i]
+              const valorLiquidoCartao = linha?.forma_pagamento === 'cartao_credito' && linha.valor_liquido_cartao
+                ? Number(linha.valor_liquido_cartao) : null
+              if (valor > 0) await registrarEntradaFinanceira(row.id, { ...row, valor_liquido_cartao: valorLiquidoCartao }, valor)
             }
           }
         }
@@ -398,14 +409,20 @@ export default function AgendamentosPage() {
   }
 
   // Quanto some do valor recebido por causa da taxa da maquininha. No débito é sempre
-  // custo da Camila (não existe "cliente assumir" taxa de débito); no crédito só desconta
-  // se ela marcou que é ela quem assume — se foi a cliente que assumiu (parcelou e pagou
-  // os juros por fora), o valor recebido pela Camila já é o cheio, sem desconto.
+  // custo da Camila. No crédito, a taxa "base" (equivalente a 1x) É SEMPRE custo dela —
+  // é o custo de aceitar cartão, existe independente de parcelamento — mesmo quando ela
+  // marca que a cliente assume o parcelamento (a cliente aí só cobre o juros extra de
+  // parcelar, pagando um pouco mais em cada parcela; a taxa base continua sendo da
+  // Camila). Só quando ela marca que assume o parcelamento também é que a taxa sobe pra
+  // taxa cheia daquele número de parcelas. Confirmado com um caso real (venda da Aninha,
+  // 10/08: R$102 em 2x, cliente assumiu o parcelamento, e mesmo assim só chegou R$97,73
+  // pra Camila — R$4,27 de taxa base que ela pagou de qualquer jeito).
   function valorTaxaCartao(formaPagamento: string | null, valorRecebido: number, parcelas: number | null, assumidaPor: string | null) {
     if (valorRecebido <= 0) return 0
     if (formaPagamento === 'cartao_debito') return valorRecebido * TAXA_CARTAO_DEBITO / 100
-    if (formaPagamento === 'cartao_credito' && assumidaPor === 'profissional') {
-      return valorRecebido * taxaCartaoCredito(parcelas ?? 1) / 100
+    if (formaPagamento === 'cartao_credito') {
+      const taxa = assumidaPor === 'profissional' ? taxaCartaoCredito(parcelas ?? 1) : taxaCartaoCredito(1)
+      return valorRecebido * taxa / 100
     }
     return 0
   }
@@ -424,7 +441,13 @@ export default function AgendamentosPage() {
       agendamento_id: agendamentoId,
     })
 
-    const taxa = valorTaxaCartao(payload.forma_pagamento, valor, payload.parcelas, payload.taxa_cartao_assumida_por)
+    // Se ela conferiu o valor líquido exato na maquininha e ajustou manualmente, usa
+    // esse número (mais preciso que a estimativa — a InfinitePay tem uma lógica própria
+    // de repasse de juros de parcelamento pro cliente que a tabela de % não replica
+    // exatamente). Senão, cai pra estimativa automática.
+    const taxa = payload.valor_liquido_cartao != null
+      ? Math.max(valor - payload.valor_liquido_cartao, 0)
+      : valorTaxaCartao(payload.forma_pagamento, valor, payload.parcelas, payload.taxa_cartao_assumida_por)
     if (taxa >= 0.01) {
       const parcelasTag = payload.forma_pagamento === 'cartao_credito' && Number(payload.parcelas) > 1 ? ` ${payload.parcelas}x` : ''
       await supabase.from('lancamentos').insert({
@@ -573,7 +596,7 @@ export default function AgendamentosPage() {
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                         {ag.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABELS[ag.forma_pagamento as NonNullable<Agendamento['forma_pagamento']>]}`}
                         {ag.forma_pagamento === 'cartao_credito' && Number(ag.parcelas) > 1 && ` ${ag.parcelas}x`}
-                        {ag.forma_pagamento === 'cartao_credito' && ag.taxa_cartao_assumida_por === 'profissional' && ' (taxa: Camila)'}
+                        {ag.forma_pagamento === 'cartao_credito' && ag.taxa_cartao_assumida_por === 'profissional' && ' (parcelamento: Camila)'}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
@@ -1044,7 +1067,7 @@ export default function AgendamentosPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Quem assume a taxa?</Label>
+                  <Label>Quem assume o parcelamento?</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
                       type="button" size="sm"
@@ -1061,12 +1084,35 @@ export default function AgendamentosPage() {
                       Eu
                     </Button>
                   </div>
-                </div>
-                {form.taxa_cartao_assumida_por === 'profissional' && form.valor_cobrado && (
-                  <p className="col-span-2 text-xs text-brand-muted-soft">
-                    Taxa da maquininha ({taxaCartaoCredito(Number(form.parcelas || 1))}%): {formatCurrency(Number(form.valor_cobrado) * taxaCartaoCredito(Number(form.parcelas || 1)) / 100)} — lançado como saída no financeiro.
+                  <p className="text-[11px] text-brand-muted-soft">
+                    A taxa base do cartão é sempre sua — isso aqui é só sobre quem paga o juro
+                    extra de parcelar (se for a cliente, ela paga um pouco mais em cada parcela).
                   </p>
-                )}
+                </div>
+                {form.valor_cobrado && (() => {
+                  const taxaPct = form.taxa_cartao_assumida_por === 'profissional'
+                    ? taxaCartaoCredito(Number(form.parcelas || 1)) : taxaCartaoCredito(1)
+                  const taxaEstimada = Number(form.valor_cobrado) * taxaPct / 100
+                  const liquidoEstimado = Number(form.valor_cobrado) - taxaEstimada
+                  return (
+                    <div className="col-span-2 space-y-2">
+                      <p className="text-xs text-brand-muted-soft">
+                        Estimativa: taxa de {formatCurrency(taxaEstimada)} ({taxaPct}%) — você recebe {formatCurrency(liquidoEstimado)} líquido.
+                      </p>
+                      <div className="space-y-1">
+                        <Label htmlFor="ag-valor-liquido" className="text-xs">
+                          Conferiu na maquininha? Ajusta o valor líquido aqui (opcional)
+                        </Label>
+                        <Input
+                          id="ag-valor-liquido" type="number" step="0.01" min="0"
+                          placeholder={liquidoEstimado.toFixed(2)}
+                          value={form.valor_liquido_cartao}
+                          onChange={e => setForm(f => ({ ...f, valor_liquido_cartao: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
             <div className="space-y-2">
