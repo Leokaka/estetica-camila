@@ -23,7 +23,7 @@ import { formatCurrency } from '@/lib/format'
 import { exportarCSV } from '@/lib/csv'
 
 const CATEGORIAS_ENTRADA = ['Serviço', 'Produto', 'Outros']
-const CATEGORIAS_SAIDA = ['Produto/Material', 'Aluguel', 'Energia', 'Água', 'Internet', 'Marketing', 'Equipamento', 'Curso/Capacitação', 'Impostos', 'Outros']
+const CATEGORIAS_SAIDA = ['Produto/Material', 'Aluguel', 'Energia', 'Água', 'Internet', 'Marketing', 'Equipamento', 'Curso/Capacitação', 'Impostos', 'Taxa de Cartão', 'Outros']
 
 // Paleta categórica validada (skill dataviz — 8 matizes, ordem fixa, CVD-safe).
 // Contraste abaixo de 3:1 em 3 matizes é mitigado pela legenda + lista "Resumo por Categoria" ao lado.
@@ -84,10 +84,27 @@ export default function FinanceiroPage() {
     setSalvando(false)
   }
 
-  async function excluir(id: string) {
-    const { error } = await supabase.from('lancamentos').delete().eq('id', id)
-    if (error) toast.error('Erro ao excluir')
-    else { toast.success('Lançamento excluído'); loadLancamentos() }
+  async function excluir(lancamento: Lancamento) {
+    const { error } = await supabase.from('lancamentos').delete().eq('id', lancamento.id)
+    if (error) { toast.error('Erro ao excluir'); setExcluindo(null); return }
+
+    // Esse lançamento é a entrada automática de um agendamento (não a taxa de cartão
+    // vinculada a ele) — excluir aqui volta o agendamento pra "pendente" e remove a taxa
+    // de cartão órfã, pra financeiro e agendamento nunca ficarem dessincronizados de novo
+    // (era o bug mapeado antes: excluía o lançamento e o agendamento continuava "pago").
+    if (lancamento.agendamento_id && lancamento.tipo === 'entrada' && lancamento.categoria === 'Serviço') {
+      await supabase.from('agendamentos')
+        .update({ status_pagamento: 'pendente', valor_pago: null })
+        .eq('id', lancamento.agendamento_id)
+      await supabase.from('lancamentos')
+        .delete()
+        .eq('agendamento_id', lancamento.agendamento_id)
+        .eq('categoria', 'Taxa de Cartão')
+      toast.success('Lançamento excluído — agendamento voltou pra "pendente"')
+    } else {
+      toast.success('Lançamento excluído')
+    }
+    loadLancamentos()
     setExcluindo(null)
   }
 
@@ -426,15 +443,20 @@ export default function FinanceiroPage() {
             <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
             <AlertDialogDescription>
               Isso remove &quot;{excluindo?.descricao}&quot; do financeiro do mês e não pode ser desfeito.
-              {excluindo?.agendamento_id && (
+              {excluindo?.agendamento_id && excluindo.tipo === 'entrada' && excluindo.categoria === 'Serviço' && (
                 <> <strong>Esse lançamento veio de um agendamento</strong> marcado como realizado —
-                excluir aqui não muda o status de pagamento dele, só some daqui do financeiro.</>
+                excluir aqui também volta o agendamento pra &quot;pagamento pendente&quot; (e remove a
+                taxa de cartão vinculada, se tiver), pra tudo continuar batendo.</>
+              )}
+              {excluindo?.agendamento_id && excluindo.categoria === 'Taxa de Cartão' && (
+                <> <strong>Essa é a taxa de cartão vinculada a um agendamento</strong> — excluir aqui
+                não mexe no pagamento dele, só remove essa despesa do financeiro.</>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => excluindo && excluir(excluindo.id)}>
+            <AlertDialogAction variant="destructive" onClick={() => excluindo && excluir(excluindo)}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

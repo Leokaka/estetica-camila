@@ -251,7 +251,15 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Calculadora de lucro removida hoje (inauguração, tela pode ser vista por clientes) */}
+            {lucroPotencial !== null && margemPotencial !== null && (
+              <div className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-surface p-3 text-sm">
+                <Calculator className="h-4 w-4 shrink-0 text-brand-muted" />
+                <span className="text-brand-text-soft">
+                  Lucro de {formatCurrency(lucroPotencial)} por atendimento —{' '}
+                  <span className={`font-medium ${margemClasse(Number(margemPotencial))}`}>{margemPotencial}% de margem</span>
+                </span>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

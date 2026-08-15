@@ -38,6 +38,10 @@ export interface Agendamento {
   status_pagamento: 'pago' | 'parcial' | 'pendente'
   valor_pago?: number | null
   data_prevista_pagamento?: string | null
+  /** Só usado com forma_pagamento = 'cartao_credito'. */
+  parcelas?: number | null
+  /** Só usado com forma_pagamento = 'cartao_credito' — no débito a taxa é sempre da Camila. */
+  taxa_cartao_assumida_por?: 'cliente' | 'profissional' | null
 }
 
 export interface Lancamento {

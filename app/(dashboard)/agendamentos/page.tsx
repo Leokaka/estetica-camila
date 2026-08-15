@@ -27,15 +27,20 @@ import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
   FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
 } from '@/lib/status'
+import { TAXA_CARTAO_DEBITO, taxaCartaoCredito } from '@/lib/taxas-cartao'
 import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/whatsapp'
 
 // 'local' saiu da UI em 01/08/2026 — Camila fechou o quartinho e o acordo com a Karine,
 // hoje só atende no espaço próprio dela. Campo mantido fixo em 'quartinho' só pra bater
 // com a constraint do banco (NOT NULL); "karine" existe só em dado histórico de abr-jun/2026.
+// taxa_cartao_assumida_por começa em 'cliente' (não desconta nada) — é uma escolha que
+// ela precisa marcar ativamente pra "Eu assumo", igual forma_pagamento já começa vazio.
+// Errar pro lado de não descontar é mais seguro que criar uma despesa fantasma.
 const EMPTY_FORM = {
   cliente_id: '', servico_id: '', data: '', hora: '', status: 'agendado',
   local: 'quartinho', valor_cobrado: '', observacoes: '',
   forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '',
+  parcelas: '1', taxa_cartao_assumida_por: 'cliente',
 }
 
 // Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
@@ -146,6 +151,8 @@ export default function AgendamentosPage() {
       status_pagamento: ag.status_pagamento ?? 'pendente',
       valor_pago: ag.valor_pago != null ? String(ag.valor_pago) : '',
       data_prevista_pagamento: ag.data_prevista_pagamento ?? '',
+      parcelas: ag.parcelas != null ? String(ag.parcelas) : '1',
+      taxa_cartao_assumida_por: ag.taxa_cartao_assumida_por ?? 'cliente',
     })
     setNovaClienteAberta(false)
     setDialogOpen(true)
@@ -302,6 +309,8 @@ export default function AgendamentosPage() {
       status_pagamento: f.status_pagamento as Agendamento['status_pagamento'],
       valor_pago: f.status_pagamento === 'parcial' && f.valor_pago ? Number(f.valor_pago) : null,
       data_prevista_pagamento: f.status_pagamento !== 'pago' && f.data_prevista_pagamento ? f.data_prevista_pagamento : null,
+      parcelas: f.forma_pagamento === 'cartao_credito' ? Number(f.parcelas || 1) : null,
+      taxa_cartao_assumida_por: f.forma_pagamento === 'cartao_credito' ? (f.taxa_cartao_assumida_por as 'cliente' | 'profissional') : null,
     }
   }
 
@@ -320,6 +329,7 @@ export default function AgendamentosPage() {
       ...f,
       servico_id: '', hora: '', valor_cobrado: '', observacoes: '',
       forma_pagamento: '', status_pagamento: 'pendente', valor_pago: '', data_prevista_pagamento: '', status: 'agendado',
+      parcelas: '1', taxa_cartao_assumida_por: 'cliente',
     }))
     setPromo15(false)
     toast.success('Procedimento adicionado — configura o próximo.')
@@ -387,18 +397,45 @@ export default function AgendamentosPage() {
     return 0
   }
 
+  // Quanto some do valor recebido por causa da taxa da maquininha. No débito é sempre
+  // custo da Camila (não existe "cliente assumir" taxa de débito); no crédito só desconta
+  // se ela marcou que é ela quem assume — se foi a cliente que assumiu (parcelou e pagou
+  // os juros por fora), o valor recebido pela Camila já é o cheio, sem desconto.
+  function valorTaxaCartao(formaPagamento: string | null, valorRecebido: number, parcelas: number | null, assumidaPor: string | null) {
+    if (valorRecebido <= 0) return 0
+    if (formaPagamento === 'cartao_debito') return valorRecebido * TAXA_CARTAO_DEBITO / 100
+    if (formaPagamento === 'cartao_credito' && assumidaPor === 'profissional') {
+      return valorRecebido * taxaCartaoCredito(parcelas ?? 1) / 100
+    }
+    return 0
+  }
+
   async function registrarEntradaFinanceira(agendamentoId: string, payload: any, valor: number) {
     const cliente = clientes.find(c => c.id === payload.cliente_id)
     const servico = servicos.find(s => s.id === payload.servico_id)
     const desc = `${servico?.nome ?? 'Serviço'} - ${cliente?.nome ?? 'Cliente'}`
+    const data = format(new Date(payload.data_hora), 'yyyy-MM-dd')
     await supabase.from('lancamentos').insert({
       tipo: 'entrada',
       descricao: desc,
       valor,
       categoria: 'Serviço',
-      data: format(new Date(payload.data_hora), 'yyyy-MM-dd'),
+      data,
       agendamento_id: agendamentoId,
     })
+
+    const taxa = valorTaxaCartao(payload.forma_pagamento, valor, payload.parcelas, payload.taxa_cartao_assumida_por)
+    if (taxa >= 0.01) {
+      const parcelasTag = payload.forma_pagamento === 'cartao_credito' && Number(payload.parcelas) > 1 ? ` ${payload.parcelas}x` : ''
+      await supabase.from('lancamentos').insert({
+        tipo: 'saida',
+        descricao: `Taxa de cartão${parcelasTag} - ${desc}`,
+        valor: Number(taxa.toFixed(2)),
+        categoria: 'Taxa de Cartão',
+        data,
+        agendamento_id: agendamentoId,
+      })
+    }
   }
 
   async function confirmarAcao() {
@@ -535,6 +572,8 @@ export default function AgendamentosPage() {
                       <p className="text-xs text-brand-muted-soft">
                         {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
                         {ag.forma_pagamento && ` · ${FORMA_PAGAMENTO_LABELS[ag.forma_pagamento as NonNullable<Agendamento['forma_pagamento']>]}`}
+                        {ag.forma_pagamento === 'cartao_credito' && Number(ag.parcelas) > 1 && ` ${ag.parcelas}x`}
+                        {ag.forma_pagamento === 'cartao_credito' && ag.taxa_cartao_assumida_por === 'profissional' && ' (taxa: Camila)'}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
@@ -984,6 +1023,50 @@ export default function AgendamentosPage() {
               <div className="space-y-2">
                 <Label htmlFor="ag-data-restante">Data prevista pro restante</Label>
                 <Input id="ag-data-restante" type="date" value={form.data_prevista_pagamento} onChange={e => setForm(f => ({ ...f, data_prevista_pagamento: e.target.value }))} />
+              </div>
+            )}
+            {form.forma_pagamento === 'cartao_debito' && (
+              <p className="text-xs text-brand-muted-soft -mt-1">
+                Taxa da maquininha ({TAXA_CARTAO_DEBITO}%) descontada automaticamente no financeiro.
+              </p>
+            )}
+            {form.forma_pagamento === 'cartao_credito' && (
+              <div className="grid grid-cols-2 gap-3 rounded-lg border border-brand-border bg-brand-surface p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="ag-parcelas">Parcelas</Label>
+                  <Select value={form.parcelas} onValueChange={v => setForm(f => ({ ...f, parcelas: v ?? f.parcelas }))}>
+                    <SelectTrigger id="ag-parcelas"><SelectValue>{form.parcelas}x</SelectValue></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                        <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quem assume a taxa?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button" size="sm"
+                      variant={form.taxa_cartao_assumida_por === 'cliente' ? 'default' : 'outline'}
+                      onClick={() => setForm(f => ({ ...f, taxa_cartao_assumida_por: 'cliente' }))}
+                    >
+                      Cliente
+                    </Button>
+                    <Button
+                      type="button" size="sm"
+                      variant={form.taxa_cartao_assumida_por === 'profissional' ? 'default' : 'outline'}
+                      onClick={() => setForm(f => ({ ...f, taxa_cartao_assumida_por: 'profissional' }))}
+                    >
+                      Eu
+                    </Button>
+                  </div>
+                </div>
+                {form.taxa_cartao_assumida_por === 'profissional' && form.valor_cobrado && (
+                  <p className="col-span-2 text-xs text-brand-muted-soft">
+                    Taxa da maquininha ({taxaCartaoCredito(Number(form.parcelas || 1))}%): {formatCurrency(Number(form.valor_cobrado) * taxaCartaoCredito(Number(form.parcelas || 1)) / 100)} — lançado como saída no financeiro.
+                  </p>
+                )}
               </div>
             )}
             <div className="space-y-2">

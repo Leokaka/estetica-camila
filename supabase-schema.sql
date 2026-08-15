@@ -125,3 +125,14 @@ ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS status_pagamento TEXT NOT NULL
   CHECK (status_pagamento IN ('pago','parcial','pendente'));
 ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS valor_pago DECIMAL(10,2);
 ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS data_prevista_pagamento DATE;
+
+-- =============================================
+-- MIGRAÇÃO 15/08/2026: taxa de maquininha no cartão
+-- Rode esse bloco no SQL Editor do Supabase (aditivo — não mexe em dado existente).
+-- 'parcelas' e 'taxa_cartao_assumida_por' só fazem sentido pra forma_pagamento =
+-- 'cartao_credito'; ficam NULL pros demais casos. No débito a taxa é sempre um custo
+-- da Camila (não existe "cliente assumir" taxa de débito), então não precisa de campo.
+-- =============================================
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS parcelas INTEGER;
+ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS taxa_cartao_assumida_por TEXT
+  CHECK (taxa_cartao_assumida_por IN ('cliente','profissional'));
