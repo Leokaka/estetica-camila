@@ -14,11 +14,11 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Plus, TrendingUp, DollarSign, Trash2, ArrowUpCircle, ArrowDownCircle, Download } from 'lucide-react'
+import { Plus, TrendingUp, DollarSign, Trash2, ArrowUpCircle, ArrowDownCircle, Download, CalendarClock, AlertTriangle } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import type { Lancamento } from '@/types'
+import type { Lancamento, Agendamento } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { exportarCSV } from '@/lib/csv'
 
@@ -41,6 +41,7 @@ function margemClasse(margem: number) {
 export default function FinanceiroPage() {
   const supabase = createClient()
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
+  const [agendamentosPeriodo, setAgendamentosPeriodo] = useState<Pick<Agendamento, 'valor_cobrado' | 'data_hora' | 'status_pagamento'>[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -58,14 +59,26 @@ export default function FinanceiroPage() {
     setLoading(true)
     const inicio = periodo ? periodo.inicio : format(startOfMonth(mesAtual), 'yyyy-MM-dd')
     const fim = periodo ? periodo.fim : format(endOfMonth(mesAtual), 'yyyy-MM-dd')
-    const { data } = await supabase
-      .from('lancamentos')
-      .select('*')
-      .gte('data', inicio)
-      .lte('data', fim)
-      .order('data', { ascending: false })
-      .order('created_at', { ascending: false })
+    const [{ data }, { data: ags }] = await Promise.all([
+      supabase
+        .from('lancamentos')
+        .select('*')
+        .gte('data', inicio)
+        .lte('data', fim)
+        .order('data', { ascending: false })
+        .order('created_at', { ascending: false }),
+      // Agendado no período independe de ela ter marcado "Realizado"/confirmado o
+      // pagamento — é o que entra em "Agendado no Período" e "Aguardando Confirmação"
+      // abaixo, pra ela ver o dinheiro que já era dela mesmo sem ter dado o OK no sistema.
+      supabase
+        .from('agendamentos')
+        .select('valor_cobrado, data_hora, status_pagamento')
+        .gte('data_hora', `${inicio}T00:00:00`)
+        .lte('data_hora', `${fim}T23:59:59`)
+        .neq('status', 'cancelado'),
+    ])
     setLancamentos(data ?? [])
+    setAgendamentosPeriodo(ags ?? [])
     setLoading(false)
   }
 
@@ -114,6 +127,17 @@ export default function FinanceiroPage() {
   const totalSaidas = saidas.reduce((s, l) => s + Number(l.valor), 0)
   const lucro = totalEntradas - totalSaidas
   const margemLucro = totalEntradas > 0 ? (lucro / totalEntradas * 100) : 0
+
+  // Total agendado no período (não cancelado), pago ou não — a "visão de retrovisor"
+  // que não depende dela ter marcado o agendamento como pago no sistema.
+  const totalAgendadoPeriodo = agendamentosPeriodo.reduce((s, a) => s + Number(a.valor_cobrado), 0)
+  // Só agendamentos cuja data já passou e que ainda não foram confirmados como pagos —
+  // isso é especificamente o que ela "esqueceu de dar OK", sem incluir agendamentos
+  // futuros normais que ainda não teriam sido pagos mesmo.
+  const agora = new Date()
+  const aguardandoConfirmacao = agendamentosPeriodo
+    .filter(a => new Date(a.data_hora) <= agora && a.status_pagamento !== 'pago')
+    .reduce((s, a) => s + Number(a.valor_cobrado), 0)
 
   const lancamentosFiltrados = filtroTipo === 'todos' ? lancamentos
     : lancamentos.filter(l => l.tipo === filtroTipo)
@@ -270,6 +294,38 @@ export default function FinanceiroPage() {
             </p>
             <p className="text-xs text-brand-muted-soft mt-1">
               {margemLucro >= 40 ? 'Saudável' : margemLucro >= 20 ? 'Atenção' : 'Crítico'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Visão de retrovisor — independe de lançamento manual ou de ela ter marcado
+          "Realizado"/pago no agendamento */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Agendado no Período</CardTitle>
+            <CalendarClock className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary">{formatCurrency(totalAgendadoPeriodo)}</p>
+            <p className="text-xs text-brand-muted-soft mt-1">
+              {agendamentosPeriodo.length} agendamento{agendamentosPeriodo.length === 1 ? '' : 's'} não cancelado{agendamentosPeriodo.length === 1 ? '' : 's'} — pago ou não
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Aguardando Confirmação</CardTitle>
+            <AlertTriangle className={`h-5 w-5 ${aguardandoConfirmacao > 0 ? 'text-warning' : 'text-brand-muted-soft'}`} />
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${aguardandoConfirmacao > 0 ? 'text-warning' : 'text-brand-muted-soft'}`}>
+              {formatCurrency(aguardandoConfirmacao)}
+            </p>
+            <p className="text-xs text-brand-muted-soft mt-1">
+              Já passou a data e ainda não foi marcado como pago — confere em Agendamentos
             </p>
           </CardContent>
         </Card>
