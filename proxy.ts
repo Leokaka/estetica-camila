@@ -25,7 +25,9 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const PUBLIC_PATHS = ['/login', '/esqueci-senha', '/redefinir-senha', '/auth/callback']
+  // '/agende' é a página pública de link da bio (Instagram) e site do Perfil do Google —
+  // precisa abrir pra cliente que nunca vai ter login.
+  const PUBLIC_PATHS = ['/login', '/esqueci-senha', '/redefinir-senha', '/auth/callback', '/agende']
   const path = request.nextUrl.pathname
   const isAuthPage = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'))
   const isApiRoute = path.startsWith('/api')
