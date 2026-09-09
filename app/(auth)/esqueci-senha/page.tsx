@@ -54,8 +54,8 @@ export default function EsqueciSenhaPage() {
             <CardTitle className="text-xl">Esqueci minha senha</CardTitle>
             <CardDescription>
               {enviado
-                ? 'Prontinho! Confere sua caixa de entrada (e o spam) e clica no link.'
-                : 'Digite seu e-mail e mandamos um link pra você criar uma senha nova'}
+                ? 'Prontinho! Confere sua caixa de entrada (e o spam): use o código de 6 dígitos na próxima tela, ou clique no link.'
+                : 'Digite seu e-mail e mandamos um código pra você criar uma senha nova'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,7 +83,13 @@ export default function EsqueciSenhaPage() {
                   {loading ? 'Enviando...' : 'Enviar link'}
                 </Button>
               </form>
-            ) : null}
+            ) : (
+              <Link href="/redefinir-senha">
+                <Button className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary">
+                  Já tenho o código
+                </Button>
+              </Link>
+            )}
 
             <p className="text-center text-sm text-muted-foreground mt-4">
               <Link href="/login" className="text-primary font-medium hover:underline">

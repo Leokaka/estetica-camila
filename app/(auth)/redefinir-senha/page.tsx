@@ -22,17 +22,70 @@ export default function RedefinirSenhaPage() {
   const [ok, setOk] = useState(false)
   const [pronto, setPronto] = useState(false)
   const [semSessao, setSemSessao] = useState(false)
+  // Caminho por código: funciona mesmo quando o link do e-mail é aberto num navegador
+  // diferente do que pediu o reset (caso do app do Gmail), que é onde o PKCE quebra.
+  const [emailCodigo, setEmailCodigo] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [validandoCodigo, setValidandoCodigo] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  async function validarCodigo(e: React.SyntheticEvent) {
+    e.preventDefault()
+    setErro('')
+    const codigoLimpo = codigo.replace(/\D/g, '')
+    if (!emailCodigo.trim() || codigoLimpo.length < 6) {
+      setErro('Preencha o e-mail e o código de 6 dígitos que chegou na sua caixa de entrada.')
+      return
+    }
+    setValidandoCodigo(true)
+    const { error } = await supabase.auth.verifyOtp({
+      email: emailCodigo.trim(),
+      token: codigoLimpo,
+      type: 'recovery',
+    })
+    setValidandoCodigo(false)
+    if (error) {
+      setErro('Código inválido ou expirado. Peça um novo em "Esqueci minha senha".')
+      return
+    }
+    setSemSessao(false)
+  }
 
   useEffect(() => {
     // O token de recuperação chega no fragmento da URL (#access_token=...) e o
     // supabase-js leva um instante pra processar e criar a sessão no cliente.
-    // Só liberamos o formulário depois de confirmar que a sessão existe.
-    supabase.auth.getSession().then(({ data }) => {
-      setSemSessao(!data.session)
+    // Antes isso era um getSession() único e imediato: quando o supabase-js ainda
+    // não tinha terminado de processar o fragmento, a tela já cravava "link expirou"
+    // e nunca mais reconferia — com o link perfeitamente válido na mão da pessoa.
+    // Agora escutamos o evento de sessão e só desistimos depois de dar tempo.
+    let achouSessao = false
+
+    function liberar() {
+      achouSessao = true
+      setSemSessao(false)
       setPronto(true)
+    }
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) liberar()
     })
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) liberar()
+    })
+
+    const desistirEm = setTimeout(() => {
+      if (!achouSessao) {
+        setSemSessao(true)
+        setPronto(true)
+      }
+    }, 4000)
+
+    return () => {
+      listener.subscription.unsubscribe()
+      clearTimeout(desistirEm)
+    }
   }, [supabase])
 
   async function handleSubmit(e: React.SyntheticEvent) {
@@ -85,7 +138,7 @@ export default function RedefinirSenhaPage() {
               {!pronto
                 ? 'Verificando o link...'
                 : semSessao
-                ? 'Não encontramos um link válido'
+                ? 'Confirme o código que enviamos por e-mail'
                 : ok
                 ? 'Senha atualizada! Entrando...'
                 : 'Escolha uma senha nova para acessar o sistema'}
@@ -94,13 +147,54 @@ export default function RedefinirSenhaPage() {
           {pronto && semSessao && (
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Esse link expirou, já foi usado, ou você abriu essa página direto. Peça um novo link.
+                Digite o <strong>código de 6 dígitos</strong> que chegou no seu e-mail. Ele funciona
+                mesmo que o link não tenha aberto direito.
               </p>
-              <Link href="/esqueci-senha">
-                <Button className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary">
-                  Pedir novo link
+              <form onSubmit={validarCodigo} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-codigo">Seu e-mail</Label>
+                  <Input
+                    id="email-codigo"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={emailCodigo}
+                    onChange={(e) => setEmailCodigo(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="codigo">Código de 6 dígitos</Label>
+                  <Input
+                    id="codigo"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {erro && (
+                  <div className="rounded-md bg-danger-soft border border-danger/20 p-3 text-sm text-danger">
+                    {erro}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  className="w-full bg-brand-text-soft text-primary-foreground hover:bg-primary"
+                  disabled={validandoCodigo}
+                >
+                  {validandoCodigo ? 'Verificando...' : 'Continuar'}
                 </Button>
-              </Link>
+              </form>
+              <p className="text-center text-sm text-muted-foreground mt-4">
+                <Link href="/esqueci-senha" className="text-primary font-medium hover:underline">
+                  Pedir um novo código
+                </Link>
+              </p>
             </CardContent>
           )}
           {pronto && !semSessao && !ok && (
