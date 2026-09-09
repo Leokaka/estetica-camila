@@ -40,13 +40,18 @@ export default function RedefinirSenhaPage() {
     }
     setValidandoCodigo(true)
     const { error } = await supabase.auth.verifyOtp({
-      email: emailCodigo.trim(),
+      // Minúsculas de propósito: o Supabase guarda o e-mail normalizado, e o teclado do
+      // celular costuma mandar a primeira letra maiúscula — isso sozinho derrubava a validação.
+      email: emailCodigo.trim().toLowerCase(),
       token: codigoLimpo,
       type: 'recovery',
     })
     setValidandoCodigo(false)
     if (error) {
-      setErro('Código inválido ou expirado. Peça um novo em "Esqueci minha senha".')
+      // Mostra o motivo real vindo do Supabase em vez de uma mensagem genérica: sem isso
+      // não dá pra distinguir "código já usado" de "expirado" de "e-mail errado", e a
+      // pessoa fica presa num ciclo de tentativa e erro.
+      setErro(`Não deu certo: ${error.message}. Se você clicou no link do e-mail antes, o código é invalidado junto — peça um novo em "Esqueci minha senha" e use só o código.`)
       return
     }
     setSemSessao(false)
