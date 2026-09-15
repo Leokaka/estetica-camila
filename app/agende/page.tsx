@@ -26,6 +26,15 @@ export const metadata: Metadata = {
   },
 }
 
+// Avaliações reais publicadas no Perfil do Google (nota 5,0, 25 avaliações).
+// Estão aqui porque a página só dizia "5,0" — número sozinho não convence tanto
+// quanto alguém contando o que sentiu. Nome abreviado no sobrenome de propósito.
+const DEPOIMENTOS = [
+  { texto: 'Que profissional e espaço incrível, tudo muito acolhedor.', autora: 'Eliana S.' },
+  { texto: 'Amei o atendimento, super atenciosa e tirou minhas dúvidas sobre o procedimento.', autora: 'Laís B.' },
+  { texto: 'Super recomendo, ambiente agradável!', autora: 'Ana Caroline A.' },
+]
+
 const GRUPOS = [
   {
     titulo: 'Estética facial e corporal',
@@ -85,6 +94,32 @@ export default function AgendePage() {
         <p className="mt-2 text-center text-xs text-brand-muted">
           Respondo por aqui e já deixo seu horário marcado
         </p>
+
+        {/* Prova social antes dos preços: quem chega pelo Google não conhece a Camila,
+            e ler outra cliente falando pesa mais na decisão do que a tabela de valores. */}
+        <section className="mt-9">
+          <h2 className="text-center text-xs font-semibold tracking-[0.2em] text-brand-muted uppercase">
+            O que dizem as clientes
+          </h2>
+          <div className="mt-4 space-y-3">
+            {DEPOIMENTOS.map(dep => (
+              <figure
+                key={dep.autora}
+                className="rounded-2xl border border-brand-border bg-brand-card p-4"
+              >
+                <blockquote className="text-sm leading-relaxed text-brand-text-soft">
+                  “{dep.texto}”
+                </blockquote>
+                <figcaption className="mt-2 text-xs text-brand-muted">
+                  {dep.autora} · avaliação no Google
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs text-brand-muted">
+            25 avaliações no Google, todas 5 estrelas
+          </p>
+        </section>
 
         {/* Serviços — ordem reflete o posicionamento de esteticista, não de salão */}
         <section className="mt-9">
