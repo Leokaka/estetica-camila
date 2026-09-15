@@ -15,6 +15,39 @@ function whatsappLink(texto: string) {
   return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`
 }
 
+// Rastreio de origem sem analytics, cookie ou pixel: cada anúncio aponta pra
+// /agende?origem=<chave>, e a chave troca a mensagem que já vai escrita no WhatsApp.
+// Assim a própria conversa diz de onde a pessoa veio — a Camila lê no celular dela,
+// sem depender de painel nenhum, e a gente descobre qual anúncio traz cliente de
+// verdade em vez de só trazer clique.
+const ORIGENS: Record<string, { entrada: string; agendar: string }> = {
+  plasma: {
+    entrada: 'Oi, Camila! Vi seu anúncio sobre remoção de verruga com jato de plasma e queria saber mais 😊',
+    agendar: 'Oi, Camila! Queria agendar uma avaliação pra remoção de verruga (jato de plasma) 😊',
+  },
+  limpeza: {
+    entrada: 'Oi, Camila! Vi seu anúncio sobre limpeza de pele e queria saber mais 😊',
+    agendar: 'Oi, Camila! Queria agendar uma limpeza de pele 😊',
+  },
+  cilios: {
+    entrada: 'Oi, Camila! Vi seu anúncio sobre extensão de cílios e queria saber mais 😊',
+    agendar: 'Oi, Camila! Queria agendar uma extensão de cílios 😊',
+  },
+  corporal: {
+    entrada: 'Oi, Camila! Vi seu anúncio sobre drenagem/massagem modeladora e queria saber mais 😊',
+    agendar: 'Oi, Camila! Queria agendar uma drenagem ou massagem modeladora 😊',
+  },
+  instagram: {
+    entrada: 'Oi, Camila! Vim pelo seu Instagram e queria saber sobre um procedimento 😊',
+    agendar: 'Oi, Camila! Vim pelo seu Instagram e queria agendar um horário 😊',
+  },
+}
+
+const ORIGEM_PADRAO = {
+  entrada: 'Oi, Camila! Vim pelo seu perfil e queria saber sobre um procedimento 😊',
+  agendar: 'Oi, Camila! Queria agendar um horário 😊',
+}
+
 export const metadata: Metadata = {
   title: 'Camila Garcia Estética | Esteticista em Vila Carmosina, São Paulo',
   description:
@@ -60,7 +93,14 @@ const GRUPOS = [
   },
 ]
 
-export default function AgendePage() {
+export default async function AgendePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ origem?: string }>
+}) {
+  const { origem } = await searchParams
+  const msg = (origem && ORIGENS[origem]) || ORIGEM_PADRAO
+
   return (
     <main className="min-h-screen bg-brand-bg px-5 py-10">
       <div className="mx-auto w-full max-w-md">
@@ -84,7 +124,7 @@ export default function AgendePage() {
 
         {/* Ação principal: conversa no WhatsApp já começada */}
         <a
-          href={whatsappLink('Oi, Camila! Vim pelo seu perfil e queria saber sobre um procedimento 😊')}
+          href={whatsappLink(msg.entrada)}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-medium px-6 py-4 text-base font-semibold text-white shadow-lg transition-colors hover:bg-brand-medium-hover"
@@ -164,7 +204,7 @@ export default function AgendePage() {
             ))}
           </div>
           <a
-            href={whatsappLink('Oi, Camila! Queria agendar um horário 😊')}
+            href={whatsappLink(msg.agendar)}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-4 flex w-full items-center justify-center rounded-2xl border border-brand-medium px-6 py-3 text-sm font-semibold text-brand-medium transition-colors hover:bg-brand-surface-warm"
