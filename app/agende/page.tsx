@@ -95,6 +95,28 @@ export default function AgendePage() {
           Respondo por aqui e já deixo seu horário marcado
         </p>
 
+        {/* Instagram e rota logo abaixo do WhatsApp, não no rodapé: a Camila reparou que
+            quem vinha da bio tinha que rolar a página inteira pra achar o Instagram —
+            numa página de link de bio, os links são o conteúdo, não o rodapé. */}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <a
+            href={INSTAGRAM}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center rounded-2xl border border-brand-border bg-brand-card px-4 py-3 text-sm font-semibold text-brand-dark transition-colors hover:bg-brand-surface-warm"
+          >
+            Instagram
+          </a>
+          <a
+            href={MAPS}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center rounded-2xl border border-brand-border bg-brand-card px-4 py-3 text-sm font-semibold text-brand-dark transition-colors hover:bg-brand-surface-warm"
+          >
+            Como chegar
+          </a>
+        </div>
+
         {/* Prova social antes dos preços: quem chega pelo Google não conhece a Camila,
             e ler outra cliente falando pesa mais na decisão do que a tabela de valores. */}
         <section className="mt-9">
