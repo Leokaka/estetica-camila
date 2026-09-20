@@ -41,6 +41,14 @@ const ORIGENS: Record<string, { entrada: string; agendar: string }> = {
     entrada: 'Oi, Camila! Vim pelo seu Instagram e queria saber sobre um procedimento 😊',
     agendar: 'Oi, Camila! Vim pelo seu Instagram e queria agendar um horário 😊',
   },
+  // O botão "Site" do Perfil do Google aponta pra cá com ?origem=google. É o único
+  // caminho do Google que aparece em toda superfície (busca e Maps, celular e
+  // computador) — o botão de WhatsApp do perfil só renderiza no app do Maps e não
+  // aceita mensagem pré-escrita, então a atribuição de lá é sempre cega.
+  google: {
+    entrada: 'Oi, Camila! Encontrei você no Google e queria saber sobre um procedimento 😊',
+    agendar: 'Oi, Camila! Encontrei você no Google e queria agendar um horário 😊',
+  },
 }
 
 const ORIGEM_PADRAO = {
