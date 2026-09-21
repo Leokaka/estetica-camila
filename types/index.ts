@@ -17,6 +17,8 @@ export interface Servico {
   duracao_minutos: number
   categoria: string
   ativo: boolean
+  /** Dias até a cliente precisar repetir. null = procedimento que não se repete. */
+  dias_retorno?: number | null
   created_at: string
 }
 

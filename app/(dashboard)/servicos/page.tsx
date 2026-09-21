@@ -23,7 +23,8 @@ const CATEGORIAS = ['Facial', 'Plasma', 'Cílios', 'Sobrancelha', 'Micropigmenta
 
 const EMPTY_FORM = {
   nome: '', descricao: '', preco: '', custo: '',
-  duracao_minutos: '60', categoria: 'Geral', ativo: true
+  duracao_minutos: '60', categoria: 'Geral', ativo: true,
+  dias_retorno: '',
 }
 
 function margemClasse(margem: number) {
@@ -78,6 +79,7 @@ export default function ServicosPage() {
       duracao_minutos: String(s.duracao_minutos),
       categoria: s.categoria,
       ativo: s.ativo,
+      dias_retorno: s.dias_retorno ? String(s.dias_retorno) : '',
     })
     setDialogOpen(true)
   }
@@ -93,16 +95,33 @@ export default function ServicosPage() {
       duracao_minutos: Number(form.duracao_minutos),
       categoria: form.categoria,
       ativo: form.ativo,
+      // Vazio = procedimento sem retorno esperado; não entra no "Na hora de voltar".
+      dias_retorno: form.dias_retorno ? Number(form.dias_retorno) : null,
     }
 
-    if (editando) {
-      const { error } = await supabase.from('servicos').update(payload).eq('id', editando.id)
-      if (error) toast.error('Erro ao atualizar serviço')
-      else { toast.success('Serviço atualizado!'); setDialogOpen(false); loadServicos() }
+    // `dias_retorno` é coluna nova (supabase-retorno.sql). Se ela ainda não existir
+    // no banco, o salvamento inteiro falharia — e cadastrar serviço é rotina da
+    // Camila. Então, nesse caso específico, tenta de novo sem o campo: melhor
+    // salvar sem a janela de retorno do que não salvar nada.
+    async function gravar(dados: Record<string, unknown>) {
+      return editando
+        ? supabase.from('servicos').update(dados).eq('id', editando.id)
+        : supabase.from('servicos').insert(dados)
+    }
+
+    let { error } = await gravar(payload)
+    if (error && /dias_retorno/.test(error.message)) {
+      const { dias_retorno: _ignorado, ...semJanela } = payload
+      void _ignorado
+      ;({ error } = await gravar(semJanela))
+    }
+
+    if (error) {
+      toast.error(editando ? 'Erro ao atualizar serviço' : 'Erro ao cadastrar serviço')
     } else {
-      const { error } = await supabase.from('servicos').insert(payload)
-      if (error) toast.error('Erro ao cadastrar serviço')
-      else { toast.success('Serviço cadastrado!'); setDialogOpen(false); loadServicos() }
+      toast.success(editando ? 'Serviço atualizado!' : 'Serviço cadastrado!')
+      setDialogOpen(false)
+      loadServicos()
     }
     setSalvando(false)
   }
@@ -269,6 +288,21 @@ export default function ServicosPage() {
                 )}
               </div>
               <Input id="servico-duracao" type="number" min="5" step="5" value={form.duracao_minutos} onChange={e => setForm({ ...form, duracao_minutos: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="servico-retorno">Voltar em (dias)</Label>
+                <span className="text-xs text-brand-muted-soft">deixe vazio se não repete</span>
+              </div>
+              <Input
+                id="servico-retorno" type="number" min="1" step="1"
+                placeholder="ex.: 21"
+                value={form.dias_retorno}
+                onChange={e => setForm({ ...form, dias_retorno: e.target.value })}
+              />
+              <p className="text-xs text-brand-muted">
+                Depois desse tempo, a cliente aparece em “Na hora de voltar” no painel.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="servico-descricao">Descrição</Label>

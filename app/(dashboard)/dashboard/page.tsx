@@ -16,7 +16,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import type { Agendamento, Cliente } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
-import { linkWhatsApp, mensagemConfirmacao, mensagemLembrete } from '@/lib/whatsapp'
+import { linkWhatsApp, mensagemConfirmacao, mensagemLembrete, mensagemRetorno, mensagemRetomada } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 
 function mensagemCobranca(nome: string, servico: string, valor: number) {
@@ -27,9 +27,28 @@ function mensagemAniversario(nome: string) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando pra desejar um feliz aniversário! 🎉 Espero que seu dia seja incrível. Um beijo!`
 }
 
-function mensagemSaudade(nome: string) {
-  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nFaz um tempo que a gente não se vê por aqui! Tô com saudade de cuidar de você — bora marcar um horário? 😊`
+/** Uma cliente que já passou da janela de retorno do próprio procedimento. */
+type Retorno = {
+  id: string
+  nome: string
+  telefone: string | null
+  servico: string
+  /** Dias desde o último atendimento. */
+  dias: number
+  /** Em quantos dias esse procedimento costuma pedir repetição. */
+  janela: number
+  /** Passou de duas janelas: já não dá pra falar em "manter o resultado". */
+  atrasada: boolean
 }
+
+// Depois de chamar a cliente, ela some do card por esse tempo. Sem isso a lista
+// mostra os mesmos nomes todo dia e a Camila para de olhar pra ela.
+const CARENCIA_CONTATO_DIAS = 14
+// Passou de 4 janelas, a chance de resposta é baixa e a lista vira cemitério.
+const LIMITE_JANELAS = 4
+// Usado quando o procedimento ainda não tem janela cadastrada — é o valor que o
+// card usava pra tudo antes de existir dias_retorno.
+const JANELA_PADRAO = 60
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -48,7 +67,8 @@ export default function DashboardPage() {
   const [proximosAgendamentos, setProximosAgendamentos] = useState<Agendamento[]>([])
   const [agendamentosAmanha, setAgendamentosAmanha] = useState<Agendamento[]>([])
   const [aniversariantes, setAniversariantes] = useState<Cliente[]>([])
-  const [clientesSemRetorno, setClientesSemRetorno] = useState<Cliente[]>([])
+  const [retornos, setRetornos] = useState<Retorno[]>([])
+  const [mostrarTodosRetornos, setMostrarTodosRetornos] = useState(false)
   const [pagamentosAtrasados, setPagamentosAtrasados] = useState<Agendamento[]>([])
   const [chartData, setChartData] = useState<{ mes: string; faturamento: number }[]>([])
 
@@ -84,7 +104,10 @@ export default function DashboardPage() {
       supabase.from('agendamentos').select('*, cliente:clientes(nome, telefone), servico:servicos(nome)')
         .gte('data_hora', hoje.toISOString()).in('status', ['agendado', 'confirmado'])
         .order('data_hora').limit(5),
-      supabase.from('clientes').select('*, agendamentos(data_hora)').order('nome'),
+      // `servico_id` (e não a janela em si) porque a janela vem de uma consulta
+      // separada: assim, se a coluna dias_retorno ainda não existir no banco, quem
+      // falha é só ela — o resto do painel continua de pé.
+      supabase.from('clientes').select('*, agendamentos(data_hora, status, servico_id)').order('nome'),
       supabase.from('lancamentos').select('valor, data, tipo')
         .gte('data', format(startOfMonth(subMonths(hoje, 5)), 'yyyy-MM-dd'))
         .lte('data', format(fimMes, 'yyyy-MM-dd')),
@@ -152,15 +175,60 @@ export default function DashboardPage() {
     })
     setAniversariantes(aniversariantesMes)
 
-    const semRetorno = (todosClientes ?? []).filter((c: any) => {
-      const agendamentos = c.agendamentos ?? []
-      if (agendamentos.length === 0) return false
-      const ultimo = agendamentos.sort((a: any, b: any) =>
+    // Janela de retorno por procedimento. A coluna dias_retorno é nova
+    // (supabase-retorno.sql) — se ainda não foi criada, refaz a consulta sem ela e
+    // o card segue funcionando com a régua única de 60 dias, como era antes.
+    const servicosComJanela = await supabase.from('servicos').select('id, nome, dias_retorno')
+    const listaServicos = servicosComJanela.error
+      ? (await supabase.from('servicos').select('id, nome')).data
+      : servicosComJanela.data
+    const janelaPorServico = new Map<string, { nome: string; dias: number }>(
+      (listaServicos ?? []).map((s: any) => [
+        s.id,
+        { nome: s.nome, dias: Number(s.dias_retorno) > 0 ? Number(s.dias_retorno) : JANELA_PADRAO },
+      ])
+    )
+
+    const naHoraDeVoltar: Retorno[] = []
+    for (const c of (todosClientes ?? []) as any[]) {
+      const agendamentos = (c.agendamentos ?? []).filter((a: any) => a.status !== 'cancelado')
+      if (agendamentos.length === 0) continue
+
+      // Quem já tem horário marcado não é cliente sumida — é cliente que volta
+      // semana que vem. Chamar essa pessoa de volta é o tipo de mensagem que
+      // queima a confiança no sistema.
+      if (agendamentos.some((a: any) => new Date(a.data_hora) > hoje)) continue
+
+      const ultimo = [...agendamentos].sort((a: any, b: any) =>
         new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()
       )[0]
-      return differenceInDays(hoje, new Date(ultimo.data_hora)) > 60
-    })
-    setClientesSemRetorno(semRetorno.slice(0, 5))
+
+      const servico = janelaPorServico.get(ultimo.servico_id)
+      const janela = servico?.dias ?? JANELA_PADRAO
+      const dias = differenceInDays(hoje, new Date(ultimo.data_hora))
+      if (dias < janela) continue
+      if (dias > janela * LIMITE_JANELAS) continue
+
+      if (
+        c.contato_retorno_em &&
+        differenceInDays(hoje, new Date(c.contato_retorno_em)) < CARENCIA_CONTATO_DIAS
+      ) continue
+
+      naHoraDeVoltar.push({
+        id: c.id,
+        nome: c.nome,
+        telefone: c.telefone ?? null,
+        servico: servico?.nome ?? 'procedimento',
+        dias,
+        janela,
+        atrasada: dias >= janela * 2,
+      })
+    }
+
+    // Quem entrou na janela há menos tempo primeiro: é quem ainda está no hábito
+    // e tem a maior chance de remarcar.
+    naHoraDeVoltar.sort((a, b) => (a.dias - a.janela) - (b.dias - b.janela))
+    setRetornos(naHoraDeVoltar)
 
     // Gráfico dos últimos 6 meses
     const mesesChart: { mes: string; faturamento: number }[] = []
@@ -191,6 +259,32 @@ export default function DashboardPage() {
     if (error) { toast.error('Erro ao confirmar agendamento'); return }
     setProximosAgendamentos(ags => ags.map(a => a.id === id ? { ...a, status: 'confirmado' } : a))
     toast.success('Agendamento confirmado!')
+  }
+
+  async function chamarRetorno(r: Retorno) {
+    if (!r.telefone) return
+    const texto = r.atrasada
+      ? mensagemRetomada(r.nome, r.servico)
+      : mensagemRetorno(r.nome, r.servico, r.dias)
+
+    // Abre primeiro, e de forma síncrona: se a aba do WhatsApp for aberta depois
+    // do await, o navegador trata como popup e bloqueia.
+    window.open(linkWhatsApp(r.telefone, texto), '_blank')
+
+    // Some da lista na hora, mesmo que o carimbo falhe: o valor aqui é a Camila
+    // não chamar a mesma pessoa duas vezes na mesma sessão.
+    setRetornos(lista => lista.filter(x => x.id !== r.id))
+
+    const { error } = await supabase
+      .from('clientes')
+      .update({ contato_retorno_em: new Date().toISOString() })
+      .eq('id', r.id)
+
+    // A coluna é nova (supabase-retorno.sql). Sem ela, a mensagem foi enviada do
+    // mesmo jeito — só volta a aparecer no próximo carregamento.
+    if (error) {
+      toast.warning('Mensagem aberta, mas não consegui marcar como chamada.')
+    }
   }
 
   const variacaoRecebido = stats.recebido_mes_anterior > 0
@@ -498,45 +592,60 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-brand-terra" />
-            Clientes sem Retorno (+60 dias)
+            Na hora de voltar
+            {retornos.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{retornos.length}</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {clientesSemRetorno.length === 0 ? (
-            <p className="text-sm text-brand-muted-soft text-center py-4">Todas as clientes retornaram recentemente</p>
+          {retornos.length === 0 ? (
+            <p className="text-sm text-brand-muted-soft text-center py-4">
+              Ninguém passou da janela de retorno. Tudo em dia!
+            </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {clientesSemRetorno.map((c: any) => {
-                const ultimoAg = c.agendamentos?.sort((a: any, b: any) =>
-                  new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()
-                )[0]
-                const diasSemRetorno = ultimoAg
-                  ? differenceInDays(new Date(), new Date(ultimoAg.data_hora))
-                  : null
-                return (
-                  <div key={c.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-brand-surface-warm">
+            <>
+              <p className="mb-3 text-xs text-brand-muted">
+                Cada procedimento tem seu próprio ritmo. Estas clientes já passaram do
+                tempo de repetir o que fizeram — o botão abre o WhatsApp com a mensagem pronta.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {retornos.slice(0, mostrarTodosRetornos ? undefined : 6).map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-brand-surface-warm">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-dark truncate">{c.nome}</p>
-                      <p className="text-xs text-brand-muted">{c.telefone}</p>
+                      <p className="text-sm font-medium text-brand-dark truncate">{r.nome}</p>
+                      <p className="text-xs text-brand-muted truncate">
+                        {r.servico} · {r.dias}d (volta em {r.janela}d)
+                      </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      {diasSemRetorno && (
-                        <span className="text-xs text-brand-terra font-medium">{diasSemRetorno}d atrás</span>
-                      )}
-                      {c.telefone && (
+                      <span className={`text-xs font-medium ${r.atrasada ? 'text-brand-terra' : 'text-success'}`}>
+                        {r.atrasada ? 'atrasada' : 'na hora'}
+                      </span>
+                      {r.telefone && (
                         <Button
                           size="icon-sm" variant="outline" className="text-success"
-                          title="Mandar mensagem no WhatsApp"
-                          onClick={() => window.open(linkWhatsApp(c.telefone, mensagemSaudade(c.nome)), '_blank')}
+                          title="Chamar de volta pelo WhatsApp"
+                          onClick={() => chamarRetorno(r)}
                         >
                           <MessageCircle className="h-3.5 w-3.5" />
                         </Button>
                       )}
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                ))}
+              </div>
+              {retornos.length > 6 && (
+                <Button
+                  variant="ghost" size="sm" className="mt-3 w-full text-brand-muted"
+                  onClick={() => setMostrarTodosRetornos(!mostrarTodosRetornos)}
+                >
+                  {mostrarTodosRetornos
+                    ? 'Mostrar menos'
+                    : `Ver as outras ${retornos.length - 6}`}
+                </Button>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

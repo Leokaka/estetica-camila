@@ -25,6 +25,24 @@ export function mensagemGenerica(nome: string) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛`
 }
 
+/**
+ * Chamada de retorno para quem está na janela do próprio procedimento.
+ * Cita o procedimento de propósito: "faz 24 dias do seu volume brasileiro" convence
+ * muito mais do que "faz tempo que você não aparece", porque dá um motivo concreto
+ * pra voltar agora em vez de um dia desses.
+ */
+export function mensagemRetorno(nome: string, servico: string, dias: number) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nVi aqui que já faz ${dias} dias do seu ${servico} — costuma ser mais ou menos nessa época que vale repetir pra manter o resultado bonito.\n\nQuer que eu separe um horário pra você essa semana? 😊`
+}
+
+/**
+ * Para quem passou bem da janela. Aqui cobrar o ritmo soa mal — já não dá pra
+ * "manter o resultado", então a mensagem convida a retomar, sem cobrança.
+ */
+export function mensagemRetomada(nome: string, servico: string) {
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nFaz um tempinho que você não aparece por aqui, que saudade!\n\nSe quiser retomar seu ${servico}, me fala qual dia e período ficam melhores pra você que eu dou um jeito de te encaixar 😊`
+}
+
 export function linkWhatsApp(telefone: string, texto: string) {
   const d = telefone.replace(/\D/g, '')
   const num = d.length <= 11 ? `55${d}` : d
