@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard, Users, Calendar, Scissors, DollarSign,
+  LayoutDashboard, Users, Calendar, Scissors, DollarSign, TrendingUp,
   LogOut, Menu, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -20,6 +20,7 @@ const navItems = [
   { href: '/agendamentos', label: 'Agendamentos', icon: Calendar },
   { href: '/servicos', label: 'Serviços', icon: Scissors },
   { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
+  { href: '/marketing', label: 'Marketing', icon: TrendingUp },
 ]
 
 function NavContent({ onClose }: { onClose?: () => void }) {

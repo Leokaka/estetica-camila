@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { ENDERECO } from '@/lib/whatsapp'
+import { Rastreio } from './rastreio'
 
 // Página pública (link da bio do Instagram + campo "site" do Perfil do Google).
 // Existe porque o funil dela era sem saída: quem achava a Camila no Google ou no
@@ -146,6 +147,7 @@ export default async function AgendePage({
 
   return (
     <main className="min-h-screen bg-brand-bg px-5 py-10">
+      <Rastreio origem={origem} />
       <div className="mx-auto w-full max-w-md">
         {/* Identidade */}
         <header className="flex flex-col items-center text-center">
@@ -170,6 +172,7 @@ export default async function AgendePage({
           href={whatsappLink(msg.entrada)}
           target="_blank"
           rel="noopener noreferrer"
+          data-evento="whatsapp"
           className="mt-8 flex w-full items-center justify-center gap-2.5 rounded-2xl bg-brand-medium px-6 py-4 text-base font-semibold text-white shadow-lg transition-colors hover:bg-brand-medium-hover"
         >
           <IconeWhatsApp className="h-5 w-5 shrink-0" />
@@ -187,6 +190,7 @@ export default async function AgendePage({
             href={INSTAGRAM}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="instagram"
             className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-brand-border bg-brand-card px-4 py-4 text-sm font-semibold text-brand-dark transition-colors hover:bg-brand-surface-warm"
           >
             <IconeInstagram className="h-6 w-6 text-brand-terra" />
@@ -196,6 +200,7 @@ export default async function AgendePage({
             href={MAPS}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="maps"
             className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-brand-border bg-brand-card px-4 py-4 text-sm font-semibold text-brand-dark transition-colors hover:bg-brand-surface-warm"
           >
             <IconeRota className="h-6 w-6 text-brand-terra" />
@@ -264,6 +269,7 @@ export default async function AgendePage({
             href={whatsappLink(msg.agendar)}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="whatsapp"
             className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-brand-medium px-6 py-3 text-sm font-semibold text-brand-medium transition-colors hover:bg-brand-surface-warm"
           >
             <IconeWhatsApp className="h-4 w-4 shrink-0" />
@@ -279,6 +285,7 @@ export default async function AgendePage({
             href={MAPS}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="maps"
             className="mt-3 inline-flex items-center justify-center rounded-xl border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark transition-colors hover:bg-brand-surface"
           >
             Como chegar
@@ -291,6 +298,7 @@ export default async function AgendePage({
             href={INSTAGRAM}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="instagram"
             className="flex w-full items-center justify-center rounded-2xl border border-brand-border bg-brand-card px-6 py-3 text-sm font-medium text-brand-dark transition-colors hover:bg-brand-surface"
           >
             Ver meu Instagram
@@ -299,6 +307,7 @@ export default async function AgendePage({
             href={MAPS}
             target="_blank"
             rel="noopener noreferrer"
+            data-evento="maps"
             className="flex w-full items-center justify-center rounded-2xl border border-brand-border bg-brand-card px-6 py-3 text-sm font-medium text-brand-dark transition-colors hover:bg-brand-surface"
           >
             Avaliar no Google
