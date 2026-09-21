@@ -23,23 +23,23 @@ function whatsappLink(texto: string) {
 const ORIGENS: Record<string, { entrada: string; agendar: string }> = {
   plasma: {
     entrada: 'Oi, Camila! Vi seu anúncio sobre remoção de verruga com jato de plasma e queria saber mais 😊',
-    agendar: 'Oi, Camila! Queria agendar uma avaliação pra remoção de verruga (jato de plasma) 😊',
+    agendar: 'Oi, Camila! Queria saber o valor e agendar uma avaliação pra remoção de verruga (jato de plasma) 😊',
   },
   limpeza: {
     entrada: 'Oi, Camila! Vi seu anúncio sobre limpeza de pele e queria saber mais 😊',
-    agendar: 'Oi, Camila! Queria agendar uma limpeza de pele 😊',
+    agendar: 'Oi, Camila! Queria saber o valor da limpeza de pele e agendar um horário 😊',
   },
   cilios: {
     entrada: 'Oi, Camila! Vi seu anúncio sobre extensão de cílios e queria saber mais 😊',
-    agendar: 'Oi, Camila! Queria agendar uma extensão de cílios 😊',
+    agendar: 'Oi, Camila! Queria saber o valor da extensão de cílios e agendar um horário 😊',
   },
   corporal: {
     entrada: 'Oi, Camila! Vi seu anúncio sobre drenagem/massagem modeladora e queria saber mais 😊',
-    agendar: 'Oi, Camila! Queria agendar uma drenagem ou massagem modeladora 😊',
+    agendar: 'Oi, Camila! Queria saber o valor da drenagem/massagem modeladora e agendar um horário 😊',
   },
   instagram: {
     entrada: 'Oi, Camila! Vim pelo seu Instagram e queria saber sobre um procedimento 😊',
-    agendar: 'Oi, Camila! Vim pelo seu Instagram e queria agendar um horário 😊',
+    agendar: 'Oi, Camila! Vim pelo seu Instagram e queria saber o valor de um procedimento e agendar 😊',
   },
   // O botão "Site" do Perfil do Google aponta pra cá com ?origem=google. É o único
   // caminho do Google que aparece em toda superfície (busca e Maps, celular e
@@ -47,13 +47,13 @@ const ORIGENS: Record<string, { entrada: string; agendar: string }> = {
   // aceita mensagem pré-escrita, então a atribuição de lá é sempre cega.
   google: {
     entrada: 'Oi, Camila! Encontrei você no Google e queria saber sobre um procedimento 😊',
-    agendar: 'Oi, Camila! Encontrei você no Google e queria agendar um horário 😊',
+    agendar: 'Oi, Camila! Encontrei você no Google e queria saber o valor de um procedimento e agendar 😊',
   },
 }
 
 const ORIGEM_PADRAO = {
   entrada: 'Oi, Camila! Vim pelo seu perfil e queria saber sobre um procedimento 😊',
-  agendar: 'Oi, Camila! Queria agendar um horário 😊',
+  agendar: 'Oi, Camila! Queria saber o valor de um procedimento e agendar um horário 😊',
 }
 
 // Ícones inline em vez de biblioteca: são três, a página é pública e o que menos
@@ -106,27 +106,32 @@ const DEPOIMENTOS = [
   { texto: 'Super recomendo, ambiente agradável!', autora: 'Ana Caroline A.' },
 ]
 
+// Sem preço, por decisão da Camila (set/2026): o valor na vitrine responde a dúvida
+// da pessoa e ela vai embora sem nunca abrir conversa — e cada reajuste obrigaria a
+// mexer em três lugares. No lugar do número entra o que o procedimento resolve: é o
+// que faz a pessoa se reconhecer no problema, e ainda dá ao Google texto de verdade
+// pra casar com buscas como "limpeza de pele vila carmosina".
 const GRUPOS = [
   {
     titulo: 'Estética facial e corporal',
     itens: [
-      { nome: 'Jato de plasma (verruga, dermatose papulosa negra)', preco: 'a partir de R$ 150' },
-      { nome: 'Limpeza de pele', preco: 'R$ 120' },
-      { nome: 'Peeling', preco: 'R$ 130' },
-      { nome: 'Microagulhamento', preco: 'R$ 100' },
-      { nome: 'Drenagem linfática', preco: 'R$ 85' },
-      { nome: 'Massagem modeladora', preco: 'R$ 90' },
-      { nome: 'Massagem relaxante', preco: 'R$ 90' },
+      { nome: 'Jato de plasma', descricao: 'Remoção de verruga e dermatose papulosa negra, sem corte e sem ponto' },
+      { nome: 'Limpeza de pele', descricao: 'Cravo, oleosidade e textura — a pele já sai diferente no mesmo dia' },
+      { nome: 'Peeling', descricao: 'Renova a pele e clareia manchas e marcas de acne' },
+      { nome: 'Microagulhamento', descricao: 'Estimula colágeno e trata textura, marcas de acne e estrias' },
+      { nome: 'Drenagem linfática', descricao: 'Desincha, ativa a circulação e tira o peso das pernas' },
+      { nome: 'Massagem modeladora', descricao: 'Modela o corpo com placas de contração abdominal' },
+      { nome: 'Massagem relaxante', descricao: 'Uma hora só sua, pra soltar a tensão acumulada' },
     ],
   },
   {
     titulo: 'Cílios e sobrancelhas',
     itens: [
-      { nome: 'Volume brasileiro', preco: 'R$ 140' },
-      { nome: 'Volume egípcio', preco: 'R$ 150' },
-      { nome: 'Fox eyes', preco: 'R$ 160' },
-      { nome: 'Lash lifting', preco: 'R$ 130' },
-      { nome: 'Brow lamination', preco: 'R$ 100' },
+      { nome: 'Volume brasileiro', descricao: 'Volume natural, que não pesa no olhar' },
+      { nome: 'Volume egípcio', descricao: 'Mais marcado, com o olhar preenchido' },
+      { nome: 'Fox eyes', descricao: 'Efeito de olhar puxadinho, alongado no canto externo' },
+      { nome: 'Lash lifting', descricao: 'Curva o seu próprio cílio, sem alongamento' },
+      { nome: 'Brow lamination', descricao: 'Alinha os fios e deixa a sobrancelha preenchida' },
     ],
   },
 ]
@@ -229,15 +234,26 @@ export default async function AgendePage({
           <h2 className="text-center text-xs font-semibold tracking-[0.2em] text-brand-muted uppercase">
             Procedimentos
           </h2>
+          {/* A ausência do preço precisa ser explicada na hora, senão lê como preço
+              escondido — e preço escondido lê como caro. Dizer que ela passa no
+              WhatsApp transforma a lacuna no próprio motivo de chamar. */}
+          <p className="mt-2 text-center text-xs leading-relaxed text-brand-muted">
+            Os valores eu passo no WhatsApp, de acordo com o que você precisa
+          </p>
           <div className="mt-4 space-y-4">
             {GRUPOS.map(grupo => (
               <div key={grupo.titulo} className="rounded-2xl border border-brand-border bg-brand-card p-4">
                 <h3 className="text-sm font-semibold text-brand-dark">{grupo.titulo}</h3>
-                <ul className="mt-3 space-y-2">
+                <ul className="mt-3 space-y-3">
                   {grupo.itens.map(item => (
-                    <li key={item.nome} className="flex items-baseline justify-between gap-3 text-sm">
-                      <span className="text-brand-text-soft">{item.nome}</span>
-                      <span className="shrink-0 font-medium text-brand-dark">{item.preco}</span>
+                    <li
+                      key={item.nome}
+                      className="border-b border-brand-border/60 pb-3 last:border-0 last:pb-0"
+                    >
+                      <p className="text-sm font-medium text-brand-dark">{item.nome}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-brand-muted">
+                        {item.descricao}
+                      </p>
                     </li>
                   ))}
                 </ul>
@@ -248,9 +264,10 @@ export default async function AgendePage({
             href={whatsappLink(msg.agendar)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 flex w-full items-center justify-center rounded-2xl border border-brand-medium px-6 py-3 text-sm font-semibold text-brand-medium transition-colors hover:bg-brand-surface-warm"
+            className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl border border-brand-medium px-6 py-3 text-sm font-semibold text-brand-medium transition-colors hover:bg-brand-surface-warm"
           >
-            Agendar meu horário
+            <IconeWhatsApp className="h-4 w-4 shrink-0" />
+            Ver valores e agendar
           </a>
         </section>
 
