@@ -609,29 +609,39 @@ export default function DashboardPage() {
                 Cada procedimento tem seu próprio ritmo. Estas clientes já passaram do
                 tempo de repetir o que fizeram — o botão abre o WhatsApp com a mensagem pronta.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Duas colunas só no lg: no sm cada célula ficava com ~230px úteis e
+                  engolia justamente os dias, que são o motivo da cliente estar aqui. */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {retornos.slice(0, mostrarTodosRetornos ? undefined : 6).map((r) => (
-                  <div key={r.id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-brand-surface-warm">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-dark truncate">{r.nome}</p>
-                      <p className="text-xs text-brand-muted truncate">
-                        {r.servico} · {r.dias}d (volta em {r.janela}d)
+                  <div
+                    key={r.id}
+                    className={`flex items-start justify-between gap-3 rounded-lg border-l-[3px] bg-brand-surface-warm p-2.5 ${
+                      r.atrasada ? 'border-brand-terra' : 'border-success'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-brand-dark">{r.nome}</p>
+                      <p className="truncate text-xs text-brand-muted">{r.servico}</p>
+                      {/* Os números em linha própria e com flex-wrap: se faltar
+                          largura eles quebram pra baixo em vez de sumirem cortados.
+                          Só o nome do procedimento pode truncar. */}
+                      <p className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 text-xs">
+                        <span className="font-medium tabular-nums text-brand-dark">{r.dias} dias</span>
+                        <span className="text-brand-muted-soft">volta a cada {r.janela}</span>
+                        <span className={`font-medium ${r.atrasada ? 'text-brand-terra' : 'text-success'}`}>
+                          {r.atrasada ? 'atrasada' : 'na hora'}
+                        </span>
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className={`text-xs font-medium ${r.atrasada ? 'text-brand-terra' : 'text-success'}`}>
-                        {r.atrasada ? 'atrasada' : 'na hora'}
-                      </span>
-                      {r.telefone && (
-                        <Button
-                          size="icon-sm" variant="outline" className="text-success"
-                          title="Chamar de volta pelo WhatsApp"
-                          onClick={() => chamarRetorno(r)}
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                    {r.telefone && (
+                      <Button
+                        size="icon-sm" variant="outline" className="shrink-0 text-success"
+                        title="Chamar de volta pelo WhatsApp"
+                        onClick={() => chamarRetorno(r)}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

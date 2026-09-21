@@ -72,17 +72,19 @@ function Delta({ atual, anterior }: { atual: number; anterior: number }) {
   }
   if (v === 0) {
     return (
-      <p className="mt-1 flex items-center gap-1 text-xs text-brand-muted">
-        <Minus className="h-3 w-3" /> igual ao período anterior
+      <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-brand-muted">
+        <Minus className="h-3 w-3 shrink-0" /> igual ao período anterior
       </p>
     )
   }
   const subiu = v > 0
   const Icone = subiu ? TrendingUp : TrendingDown
+  // flex-wrap porque em duas colunas no celular o texto não cabe numa linha só —
+  // sem isso ele vaza pra fora do cartão em vez de quebrar.
   return (
-    <p className={`mt-1 flex items-center gap-1 text-xs ${subiu ? 'text-emerald-600' : 'text-rose-600'}`}>
-      <Icone className="h-3 w-3" />
-      {subiu ? '+' : ''}{v}% vs. período anterior ({anterior})
+    <p className={`mt-1 flex flex-wrap items-center gap-x-1 text-xs ${subiu ? 'text-emerald-600' : 'text-rose-600'}`}>
+      <Icone className="h-3 w-3 shrink-0" />
+      <span>{subiu ? '+' : ''}{v}% vs. anterior ({anterior})</span>
     </p>
   )
 }
