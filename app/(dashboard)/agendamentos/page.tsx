@@ -155,7 +155,7 @@ export default function AgendamentosPage() {
     setAgendamentos((ags as any) ?? [])
     setClientes(cls ?? [])
     setServicos(svs ?? [])
-    setPendencias((pend as any) ?? [])
+    setPendencias((pend as unknown as Agendamento[]) ?? [])
     setLoading(false)
   }
 
@@ -663,7 +663,7 @@ export default function AgendamentosPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pendencias.map((ag: any) => (
+            {pendencias.map(ag => (
               <div key={ag.id} className="rounded-lg border border-brand-border bg-brand-card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
