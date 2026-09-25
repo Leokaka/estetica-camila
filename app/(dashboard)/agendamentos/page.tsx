@@ -108,6 +108,7 @@ export default function AgendamentosPage() {
   const [modoAgora, setModoAgora] = useState(false)
   /** Atendimentos cuja data já passou e que continuam como "agendado"/"confirmado". */
   const [pendencias, setPendencias] = useState<Agendamento[]>([])
+  const [verTodasPendencias, setVerTodasPendencias] = useState(false)
   // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
   // "Agendar" pra serem todos criados juntos — permite marcar vários procedimentos
   // pra mesma cliente numa única confirmação, em vez de reabrir o dialog pra cada um.
@@ -663,7 +664,7 @@ export default function AgendamentosPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pendencias.map(ag => (
+            {pendencias.slice(0, verTodasPendencias ? undefined : 8).map(ag => (
               <div key={ag.id} className="rounded-lg border border-brand-border bg-brand-card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -692,6 +693,17 @@ export default function AgendamentosPage() {
                 </div>
               </div>
             ))}
+            {/* Teto de 8 porque a lista chegou a 40 itens: sem corte, a agenda ficava
+                a 4.000px de rolagem da primeira tela e a página inteira virava um
+                paredão — o contrário de facilitar. O total continua no cabeçalho. */}
+            {pendencias.length > 8 && (
+              <Button
+                variant="ghost" size="sm" className="w-full text-brand-text-soft"
+                onClick={() => setVerTodasPendencias(v => !v)}
+              >
+                {verTodasPendencias ? 'Mostrar menos' : `Ver as outras ${pendencias.length - 8}`}
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
