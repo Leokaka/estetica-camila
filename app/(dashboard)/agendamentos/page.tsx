@@ -104,6 +104,8 @@ export default function AgendamentosPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Agendamento | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  // Só muda o texto da tela: o formulário é o mesmo, o que muda é o que já vem preenchido.
+  const [modoAgora, setModoAgora] = useState(false)
   // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
   // "Agendar" pra serem todos criados juntos — permite marcar vários procedimentos
   // pra mesma cliente numa única confirmação, em vez de reabrir o dialog pra cada um.
@@ -147,6 +149,7 @@ export default function AgendamentosPage() {
 
   function abrirNovo(data?: Date) {
     setEditando(null)
+    setModoAgora(false)
     // Data já vem preenchida com hoje: sem ela o seletor de horário abre travado
     // ("escolhe o serviço e a data primeiro") e obriga um toque a mais em todo
     // agendamento. Hoje é o caso mais comum; trocar é um toque, digitar é dois.
@@ -169,6 +172,7 @@ export default function AgendamentosPage() {
    */
   function abrirAtendimentoAgora() {
     setEditando(null)
+    setModoAgora(true)
     setForm({
       ...EMPTY_FORM,
       data: format(new Date(), 'yyyy-MM-dd'),
@@ -188,6 +192,7 @@ export default function AgendamentosPage() {
 
   function abrirEditar(ag: Agendamento) {
     setEditando(ag)
+    setModoAgora(false)
     setFila([])
     const dt = new Date(ag.data_hora)
     setForm({
@@ -611,7 +616,7 @@ export default function AgendamentosPage() {
     .filter(ag => !buscaCliente.trim() || (ag as any).cliente?.nome?.toLowerCase().includes(buscaCliente.trim().toLowerCase()))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 sm:pb-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Agendamentos</h1>
@@ -923,7 +928,9 @@ export default function AgendamentosPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editando ? 'Editar Agendamento' : 'Novo Agendamento'}</DialogTitle>
+            <DialogTitle>
+              {editando ? 'Editar Agendamento' : modoAgora ? 'Atendimento de agora' : 'Novo Agendamento'}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
@@ -1074,7 +1081,11 @@ export default function AgendamentosPage() {
                 />
               </div>
               {!form.servico_id || !form.data ? (
-                <p className="text-xs text-muted-foreground">Escolha o serviço e a data primeiro.</p>
+                <p className="text-xs text-muted-foreground">
+                  {form.hora
+                    ? `Horário ${form.hora} já preenchido — escolha o serviço pra confirmar que cabe na agenda.`
+                    : 'Escolha o serviço e a data primeiro.'}
+                </p>
               ) : horariosDoServico.length === 0 && !(editando && form.hora) ? (
                 <p className="text-xs text-danger">Sem horário livre nesse dia pra esse serviço — tenta outro dia na tira acima.</p>
               ) : (
