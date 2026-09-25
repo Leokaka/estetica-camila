@@ -18,6 +18,8 @@ type Evento = {
   tipo: 'visita' | 'whatsapp' | 'instagram' | 'maps'
   origem: string | null
   dispositivo: string | null
+  /** Id aleatório por aba. Serve pra separar "9 visitas" de "9 pessoas". */
+  sessao: string | null
 }
 
 const PERIODOS = [
@@ -108,7 +110,7 @@ export default function MarketingPage() {
 
       const { data, error } = await supabase
         .from('eventos')
-        .select('criado_em, tipo, origem, dispositivo')
+        .select('criado_em, tipo, origem, dispositivo, sessao')
         .gte('criado_em', desde.toISOString())
         .order('criado_em', { ascending: true })
 
@@ -182,8 +184,16 @@ export default function MarketingPage() {
     const celular = atuais.filter(e => e.tipo === 'visita' && e.dispositivo === 'celular').length
     const visitas = contar(atuais, 'visita')
 
+    // Quantas pessoas diferentes, não quantas aberturas. Com volume baixo a
+    // diferença é enorme: uma pessoa que abre a página três vezes vira "3 visitas"
+    // e faz parecer movimento que não existe.
+    const pessoas = new Set(
+      atuais.filter(e => e.tipo === 'visita' && e.sessao).map(e => e.sessao)
+    ).size
+
     return {
       visitas,
+      pessoas,
       conversas: contar(atuais, 'whatsapp'),
       instagram: contar(atuais, 'instagram'),
       maps: contar(atuais, 'maps'),
@@ -257,6 +267,11 @@ export default function MarketingPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-semibold tabular-nums text-brand-dark">{dados.visitas}</p>
+                {dados.pessoas > 0 && (
+                  <p className="mt-0.5 text-xs text-brand-muted">
+                    de {dados.pessoas} {dados.pessoas === 1 ? 'pessoa diferente' : 'pessoas diferentes'}
+                  </p>
+                )}
                 <Delta atual={dados.visitas} anterior={dados.visitasAntes} />
               </CardContent>
             </Card>
@@ -373,6 +388,13 @@ export default function MarketingPage() {
                 )}
                 “Direto ou link sem marcação” é quem digitou o endereço, salvou nos favoritos —
                 ou chegou por um link publicado sem <code>?origem=</code>.
+              </p>
+              {/* A pergunta que sempre volta com volume baixo é "isso não fomos nós?".
+                  Melhor responder na própria tela do que por fora. */}
+              <p className="mt-2 text-xs leading-relaxed text-brand-muted">
+                Para suas próprias conferidas não entrarem na conta, abra uma vez{' '}
+                <code>/agende?naocontar=1</code> em cada celular seu. Aquele aparelho para de
+                contar para sempre (<code>?naocontar=0</code> desfaz).
               </p>
             </CardContent>
           </Card>
