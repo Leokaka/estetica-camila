@@ -17,7 +17,7 @@ import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxI
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
@@ -47,7 +47,11 @@ const EMPTY_FORM = {
 // Promoção de inauguração — arredonda pra baixo (bate com a tabela divulgada).
 // Vale só pra atendimentos com data até PROMO_FIM (combinado com a Camila) —
 // não é sobre quando a promo é aplicada, é sobre a data do procedimento em si.
-const PROMO_ATIVA = true
+// Desligada em 25/09/2026: a validade venceu em 31/08 e o bloco continuava aparecendo
+// em todo agendamento novo só pra dizer "essa data já passou da validade". Num formulário
+// que já é longo, aviso que nunca vai ser útil de novo é atrito puro. Pra reativar numa
+// próxima promoção, voltar pra true e ajustar PROMO_FIM/PROMO_LABEL.
+const PROMO_ATIVA = false
 const PROMO_FIM = '2026-08-31'
 const PROMO_LABEL = '15% de inauguração'
 function precoPromo(preco: number) {
@@ -73,7 +77,23 @@ const TIMELINE_STATUS_CLASSES: Record<Agendamento['status'], string> = {
   cancelado: 'bg-muted border-border text-muted-foreground line-through opacity-70',
 }
 
-type AcaoTipo = 'realizado' | 'cancelar' | 'excluir'
+/**
+ * Agora, arredondado pra baixo na grade de 15 min e preso dentro do expediente.
+ * Serve pro atalho "Atendi agora": o atendimento que acabou de acontecer começou
+ * há pouco, não daqui a pouco.
+ */
+function horaAgoraNaGrade(): string {
+  const d = new Date()
+  const { grade, abertura, fechamento } = HORARIO_FUNCIONAMENTO
+  const agora = Math.floor((d.getHours() * 60 + d.getMinutes()) / grade) * grade
+  const preso = Math.min(
+    Math.max(agora, paraMinutos(abertura)),
+    paraMinutos(fechamento) - grade
+  )
+  return `${String(Math.floor(preso / 60)).padStart(2, '0')}:${String(preso % 60).padStart(2, '0')}`
+}
+
+type AcaoTipo = 'realizado' | 'pago' | 'cancelar' | 'excluir'
 
 export default function AgendamentosPage() {
   const supabase = createClient()
@@ -127,7 +147,38 @@ export default function AgendamentosPage() {
 
   function abrirNovo(data?: Date) {
     setEditando(null)
-    setForm({ ...EMPTY_FORM, data: data ? format(data, 'yyyy-MM-dd') : '' })
+    // Data já vem preenchida com hoje: sem ela o seletor de horário abre travado
+    // ("escolhe o serviço e a data primeiro") e obriga um toque a mais em todo
+    // agendamento. Hoje é o caso mais comum; trocar é um toque, digitar é dois.
+    setForm({ ...EMPTY_FORM, data: format(data ?? new Date(), 'yyyy-MM-dd') })
+    setFila([])
+    setPromo15(false)
+    setNovaClienteAberta(false)
+    setNovaCliente({ nome: '', telefone: '' })
+    setDialogOpen(true)
+  }
+
+  /**
+   * Atalho pro atendimento que ACABOU de acontecer, sem ter sido agendado antes.
+   *
+   * Esse é o caso que mais escapa: a Camila atende, a cliente vai embora e o
+   * lançamento fica pra depois — e depois vira nunca. Pelo caminho normal ela teria
+   * que escolher a data, caçar o horário que já passou no meio de 50 e poucos chips,
+   * trocar o status pra "realizado" e ainda marcar o pagamento. Aqui tudo isso já
+   * vem pronto: sobra escolher a cliente e o procedimento.
+   */
+  function abrirAtendimentoAgora() {
+    setEditando(null)
+    setForm({
+      ...EMPTY_FORM,
+      data: format(new Date(), 'yyyy-MM-dd'),
+      hora: horaAgoraNaGrade(),
+      status: 'realizado',
+      // Atendimento de balcão quase sempre é pago na hora. Fica visível no formulário
+      // pra ela trocar quando não for — e resolve o esquecimento crônico de marcar
+      // como pago depois, que é o que deixa o financeiro errado.
+      status_pagamento: 'pago',
+    })
     setFila([])
     setPromo15(false)
     setNovaClienteAberta(false)
@@ -238,12 +289,18 @@ export default function AgendamentosPage() {
       const disponiveis = horariosParaServicoData(id, form.data)
       return disponiveis.find(h => paraMinutos(h) >= fimUltimoMin) ?? disponiveis[0]
     })()
+    // Duração muda com o serviço, então o horário escolhido pode não caber mais (passar
+    // do fechamento ou bater em outro agendamento). Antes isso limpava o horário SEMPRE
+    // que trocava o serviço — o que apagava o horário já preenchido pelo "Atendi agora"
+    // e também obrigava a reescolher à toa quando o horário continuava válido. Agora só
+    // limpa quando de fato não cabe mais.
+    const horaAindaCabe =
+      !!form.hora && id !== '' && horariosParaServicoData(id, form.data).includes(form.hora)
+
     setForm(f => ({
       ...f,
       servico_id: id,
-      // Duração pode mudar com o serviço — reconfere o horário em vez de manter um
-      // horário que pode não caber mais (passar do fechamento ou bater em outro agendamento).
-      hora: horaSugerida ?? (trocouServico ? '' : f.hora),
+      hora: horaSugerida ?? (trocouServico && !horaAindaCabe ? '' : f.hora),
       valor_cobrado: base !== null ? String(promo15 ? precoPromo(base) : base) : f.valor_cobrado,
     }))
   }
@@ -482,6 +539,41 @@ export default function AgendamentosPage() {
       } else {
         toast.error('Erro ao marcar como realizado')
       }
+    } else if (tipo === 'pago') {
+      // Atendimento já realizado que ficou com pagamento em aberto. Antes só dava pra
+      // resolver abrindo "Editar detalhes" e mexendo no formulário inteiro — por isso
+      // tanta coisa ficava marcada como pendente e o financeiro nunca fechava.
+      //
+      // O valor lançado é o que FALTA, calculado a partir do que já entrou no
+      // financeiro por esse agendamento — e não a partir do status. Assim um parcial
+      // que já lançou a entrada não lança o valor cheio de novo.
+      const { data: jaLancado } = await supabase
+        .from('lancamentos')
+        .select('valor')
+        .eq('agendamento_id', ag.id)
+        .eq('tipo', 'entrada')
+      const jaRecebido = (jaLancado ?? []).reduce(
+        (s: number, l: { valor: number | string }) => s + Number(l.valor),
+        0
+      )
+      const falta = Number((Number(ag.valor_cobrado) - jaRecebido).toFixed(2))
+
+      const { error } = await supabase
+        .from('agendamentos')
+        .update({ status_pagamento: 'pago', valor_pago: null, data_prevista_pagamento: null })
+        .eq('id', ag.id)
+
+      if (error) {
+        toast.error('Erro ao marcar como pago')
+      } else {
+        if (falta > 0) await registrarEntradaFinanceira(ag.id, ag, falta)
+        toast.success(
+          falta > 0
+            ? `Recebido! ${formatCurrency(falta)} lançado no financeiro.`
+            : 'Marcado como pago.'
+        )
+        loadData()
+      }
     } else if (tipo === 'cancelar') {
       const { error } = await supabase.from('agendamentos').update({ status: 'cancelado' }).eq('id', ag.id)
       if (error) toast.error('Erro ao cancelar')
@@ -525,9 +617,16 @@ export default function AgendamentosPage() {
           <h1 className="font-heading text-3xl font-semibold text-brand-dark tracking-wide">Agendamentos</h1>
           <p className="text-muted-foreground">{format(mesAtual, "MMMM 'de' yyyy", { locale: ptBR })}</p>
         </div>
-        <Button onClick={() => abrirNovo()}>
-          <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
-        </Button>
+        {/* Dois caminhos de propósito: marcar o que vem (agendamento) e lançar o que
+            acabou de acontecer (atendimento). O segundo é o que mais escapava. */}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={abrirAtendimentoAgora} className="flex-1 sm:flex-none">
+            <CheckCircle className="h-4 w-4 mr-2" /> Atendi agora
+          </Button>
+          <Button onClick={() => abrirNovo()} className="flex-1 sm:flex-none">
+            <Plus className="h-4 w-4 mr-2" /> Novo Agendamento
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="calendario">
@@ -601,6 +700,14 @@ export default function AgendamentosPage() {
                         {ag.status !== 'realizado' && ag.status !== 'cancelado' && (
                           <Button size="sm" variant="outline" className="text-success h-7 px-2 text-xs" onClick={() => setAcao({ tipo: 'realizado', ag })}>
                             <CheckCircle className="h-3.5 w-3.5 mr-1" /> Realizado
+                          </Button>
+                        )}
+                        {/* Atendimento feito mas com pagamento em aberto: até aqui só dava
+                            pra resolver abrindo o formulário inteiro, e por isso quase nunca
+                            era resolvido. */}
+                        {ag.status === 'realizado' && ag.status_pagamento !== 'pago' && (
+                          <Button size="sm" variant="outline" className="text-success h-7 px-2 text-xs" onClick={() => setAcao({ tipo: 'pago', ag })}>
+                            <CircleDollarSign className="h-3.5 w-3.5 mr-1" /> Recebi
                           </Button>
                         )}
                         {ag.cliente?.telefone && ag.status !== 'cancelado' && (
@@ -799,6 +906,20 @@ export default function AgendamentosPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Atalho fixo no celular: os botões do topo somem assim que ela rola a agenda,
+          e é no celular, entre um atendimento e outro, que o lançamento precisa
+          acontecer. Some quando o formulário está aberto pra não cobrir o dialog. */}
+      {!dialogOpen && (
+        <button
+          type="button"
+          onClick={abrirAtendimentoAgora}
+          className="fixed right-4 z-40 flex items-center gap-2 rounded-full bg-brand-medium px-5 py-3.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-medium-hover sm:hidden"
+          style={{ bottom: `calc(1rem + env(safe-area-inset-bottom, 0px))` }}
+        >
+          <CheckCircle className="h-4 w-4" /> Atendi agora
+        </button>
+      )}
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -937,7 +1058,21 @@ export default function AgendamentosPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Horário *</Label>
+              {/* Campo de digitar ao lado do rótulo: a grade de 15 min entre 07h e 20h
+                  gera mais de 50 chips, e caçar "14:00" rolando essa parede no celular
+                  é justamente o tipo de atrito que faz o lançamento ficar pra depois.
+                  Quem sabe a hora digita; quem quer ver o que está livre usa os chips. */}
+              <div className="flex items-center justify-between">
+                <Label>Horário *</Label>
+                <Input
+                  type="time"
+                  step={HORARIO_FUNCIONAMENTO.grade * 60}
+                  value={form.hora}
+                  onChange={e => setForm(f => ({ ...f, hora: e.target.value }))}
+                  className="h-8 w-auto text-xs"
+                  aria-label="Digitar horário"
+                />
+              </div>
               {!form.servico_id || !form.data ? (
                 <p className="text-xs text-muted-foreground">Escolha o serviço e a data primeiro.</p>
               ) : horariosDoServico.length === 0 && !(editando && form.hora) ? (
@@ -1194,11 +1329,13 @@ export default function AgendamentosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {acao?.tipo === 'realizado' && `Marcar "${acao.ag.cliente?.nome}" como realizado?`}
+              {acao?.tipo === 'pago' && `Recebeu o pagamento de "${acao.ag.cliente?.nome}"?`}
               {acao?.tipo === 'cancelar' && 'Cancelar agendamento?'}
               {acao?.tipo === 'excluir' && 'Excluir agendamento?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {acao?.tipo === 'realizado' && `Isso lança ${formatCurrency(Number(acao.ag.valor_cobrado))} automaticamente no Financeiro.`}
+              {acao?.tipo === 'pago' && 'Lança no Financeiro o que ainda faltava desse atendimento.'}
               {acao?.tipo === 'cancelar' && 'O horário volta a ficar disponível pra outra cliente.'}
               {acao?.tipo === 'excluir' && 'Essa ação remove o registro e não pode ser desfeita.'}
             </AlertDialogDescription>
@@ -1206,7 +1343,7 @@ export default function AgendamentosPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={processandoAcao}>Voltar</AlertDialogCancel>
             <AlertDialogAction
-              variant={acao?.tipo === 'realizado' ? 'default' : 'destructive'}
+              variant={acao?.tipo === 'realizado' || acao?.tipo === 'pago' ? 'default' : 'destructive'}
               onClick={confirmarAcao}
               disabled={processandoAcao}
             >
