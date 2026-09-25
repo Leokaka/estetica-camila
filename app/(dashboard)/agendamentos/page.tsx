@@ -106,6 +106,8 @@ export default function AgendamentosPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   // Só muda o texto da tela: o formulário é o mesmo, o que muda é o que já vem preenchido.
   const [modoAgora, setModoAgora] = useState(false)
+  /** Atendimentos cuja data já passou e que continuam como "agendado"/"confirmado". */
+  const [pendencias, setPendencias] = useState<Agendamento[]>([])
   // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
   // "Agendar" pra serem todos criados juntos — permite marcar vários procedimentos
   // pra mesma cliente numa única confirmação, em vez de reabrir o dialog pra cada um.
@@ -132,18 +134,28 @@ export default function AgendamentosPage() {
     const inicio = startOfMonth(mesAtual).toISOString()
     const fim = endOfMonth(mesAtual).toISOString()
 
-    const [{ data: ags }, { data: cls }, { data: svs }] = await Promise.all([
+    const [{ data: ags }, { data: cls }, { data: svs }, { data: pend }] = await Promise.all([
       supabase.from('agendamentos')
         .select('*, cliente:clientes(id, nome, telefone), servico:servicos(id, nome, preco, duracao_minutos)')
         .gte('data_hora', inicio).lte('data_hora', fim)
         .order('data_hora'),
       supabase.from('clientes').select('*').order('nome'),
       supabase.from('servicos').select('*').eq('ativo', true).order('nome'),
+      // Consulta própria, sem recorte de mês: o atendimento esquecido não fica só no
+      // mês que ela está olhando, e era exatamente esse o buraco — em 25/09 havia
+      // R$ 1.107 de setembro inteiro sem nenhum atendimento fechado, então o
+      // financeiro mostrava R$ 0 recebido e "-100% vs mês anterior".
+      supabase.from('agendamentos')
+        .select('*, cliente:clientes(id, nome, telefone), servico:servicos(id, nome)')
+        .lt('data_hora', new Date().toISOString())
+        .in('status', ['agendado', 'confirmado'])
+        .order('data_hora'),
     ])
 
     setAgendamentos((ags as any) ?? [])
     setClientes(cls ?? [])
     setServicos(svs ?? [])
+    setPendencias((pend as any) ?? [])
     setLoading(false)
   }
 
@@ -633,6 +645,56 @@ export default function AgendamentosPage() {
           </Button>
         </div>
       </div>
+
+      {/* O passivo em primeiro lugar, antes de qualquer agenda. Um atendimento que
+          aconteceu mas nunca foi fechado não existe no financeiro: em 25/09 eram 10
+          atendimentos e R$ 1.107 invisíveis, com o painel dizendo "R$ 0 recebido". */}
+      {pendencias.length > 0 && (
+        <Card className="border-brand-terra bg-brand-surface-warm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+              <CalendarClock className="h-4 w-4 text-brand-terra" />
+              Fechar atendimentos que já passaram
+              <Badge variant="secondary">{pendencias.length}</Badge>
+            </CardTitle>
+            <p className="text-sm text-brand-text-soft">
+              {formatCurrency(pendencias.reduce((s, ag) => s + Number(ag.valor_cobrado), 0))} que
+              ainda não entraram no Financeiro. Um toque em cada e o mês fecha certo.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendencias.map((ag: any) => (
+              <div key={ag.id} className="rounded-lg border border-brand-border bg-brand-card p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-brand-dark">{ag.cliente?.nome}</p>
+                    <p className="truncate text-xs text-brand-muted">
+                      {ag.servico?.nome} · {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-brand-dark">
+                    {formatCurrency(Number(ag.valor_cobrado))}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex gap-2">
+                  <Button
+                    size="sm" className="flex-1"
+                    onClick={() => setAcao({ tipo: 'realizado', ag })}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Atendi
+                  </Button>
+                  <Button
+                    size="sm" variant="outline" className="flex-1 text-danger"
+                    onClick={() => setAcao({ tipo: 'cancelar', ag })}
+                  >
+                    <XCircle className="h-3.5 w-3.5 mr-1.5" /> Não veio
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="calendario">
         <TabsList>
