@@ -5,6 +5,10 @@ export interface Cliente {
   email?: string
   data_nascimento?: string
   observacoes?: string
+  /** Como chegou (supabase-origem-clientes.sql). null = não informado. */
+  origem?: string | null
+  /** Cliente que indicou, quando origem = 'indicacao'. */
+  indicada_por?: string | null
   created_at: string
 }
 

@@ -50,6 +50,8 @@ const LIMITE_JANELAS = 4
 // Usado quando o procedimento ainda não tem janela cadastrada — é o valor que o
 // card usava pra tudo antes de existir dias_retorno.
 const JANELA_PADRAO = 60
+// Período do placar "chamou X, Y marcaram" do card de retorno.
+const JANELA_PLACAR_DIAS = 60
 
 export default function DashboardPage() {
   const supabase = createClient()
@@ -71,6 +73,7 @@ export default function DashboardPage() {
   const [aniversariantes, setAniversariantes] = useState<Cliente[]>([])
   const [retornos, setRetornos] = useState<Retorno[]>([])
   const [mostrarTodosRetornos, setMostrarTodosRetornos] = useState(false)
+  const [placarRetorno, setPlacarRetorno] = useState({ chamadas: 0, voltaram: 0 })
   const [pagamentosAtrasados, setPagamentosAtrasados] = useState<Agendamento[]>([])
   const [chartData, setChartData] = useState<{ mes: string; faturamento: number }[]>([])
 
@@ -112,7 +115,7 @@ export default function DashboardPage() {
       // `servico_id` (e não a janela em si) porque a janela vem de uma consulta
       // separada: assim, se a coluna dias_retorno ainda não existir no banco, quem
       // falha é só ela — o resto do painel continua de pé.
-      supabase.from('clientes').select('*, agendamentos(data_hora, status, servico_id)').order('nome'),
+      supabase.from('clientes').select('*, agendamentos(data_hora, status, servico_id, created_at)').order('nome'),
       supabase.from('lancamentos').select('valor, data, tipo, agendamento_id')
         .gte('data', format(startOfMonth(subMonths(hoje, 5)), 'yyyy-MM-dd'))
         .lte('data', format(fimMes, 'yyyy-MM-dd')),
@@ -247,6 +250,23 @@ export default function DashboardPage() {
     // e tem a maior chance de remarcar.
     naHoraDeVoltar.sort((a, b) => (a.dias - a.janela) - (b.dias - b.janela))
     setRetornos(naHoraDeVoltar)
+
+    // Placar do card: de quem foi chamada nos últimos 60 dias, quantas marcaram
+    // horário DEPOIS da mensagem. Sem isso a rotina de chamar de volta vira fé —
+    // ninguém sabe se as mensagens trazem cliente ou só ocupam tempo.
+    let chamadas = 0
+    let voltaram = 0
+    type ClienteComAgendamentos = { contato_retorno_em?: string | null; agendamentos?: { status: string; created_at?: string }[] }
+    for (const c of (todosClientes ?? []) as ClienteComAgendamentos[]) {
+      if (!c.contato_retorno_em) continue
+      const chamadaEm = new Date(c.contato_retorno_em)
+      if (differenceInDays(hoje, chamadaEm) > JANELA_PLACAR_DIAS) continue
+      chamadas++
+      if ((c.agendamentos ?? []).some(a =>
+        a.status !== 'cancelado' && a.created_at && new Date(a.created_at) > chamadaEm
+      )) voltaram++
+    }
+    setPlacarRetorno({ chamadas, voltaram })
 
     // Gráfico dos últimos 6 meses: lançamentos + presumidos. Agendamento que já tem
     // entrada lançada fica de fora dos presumidos — o diagnóstico de 15/10 achou mais
@@ -639,6 +659,12 @@ export default function DashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {placarRetorno.chamadas > 0 && (
+            <p className="mb-3 rounded-lg bg-brand-surface px-3 py-2 text-xs text-brand-text-soft">
+              Últimos {JANELA_PLACAR_DIAS} dias: chamou <span className="font-semibold text-brand-dark">{placarRetorno.chamadas}</span>
+              {' '}· <span className="font-semibold text-success">{placarRetorno.voltaram}</span> {placarRetorno.voltaram === 1 ? 'marcou' : 'marcaram'} de novo
+            </p>
+          )}
           {retornos.length === 0 ? (
             <p className="text-sm text-brand-muted-soft text-center py-4">
               Ninguém passou da janela de retorno. Tudo em dia!

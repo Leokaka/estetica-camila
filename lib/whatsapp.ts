@@ -20,9 +20,22 @@ export function mensagemConfirmacaoVarios(nome: string, itens: { servico: string
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeus agendamentos estão confirmados:\n${linhas}\n💰 Total R$ ${total}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
 }
 
-/** Mensagem pós-atendimento, pra quando o agendamento já foi marcado como realizado. */
+// Onde a cliente avalia no Google. O ideal é o link curto oficial ("g.page/r/…/review",
+// em business.google.com → Pedir avaliações), que já abre a caixa de escrever. Enquanto
+// ele não for colado aqui, vale a busca no Maps: funciona, mas a cliente ainda precisa
+// achar o botão de avaliar.
+export const LINK_AVALIACAO_GOOGLE = 'https://www.google.com/maps/search/Camila+Garcia+Est%C3%A9tica+Rua+S%C3%A3o+Teodoro+833'
+
+/**
+ * Mensagem pós-atendimento, com pedido de avaliação no Google.
+ *
+ * O pedido mora aqui porque o único pico de interações do Perfil do Google (42 em
+ * agosto/2026) veio da campanha de pedir avaliação — e em setembro, sem campanha,
+ * voltou a zero. Campanha pontual não se sustenta; pedir no agradecimento de cada
+ * atendimento, sim, sem depender de ninguém lembrar.
+ */
 export function mensagemAgradecimento(nome: string, servico: string) {
-  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar no meu trabalho hoje! Espero que tenha amado o resultado do seu ${servico} ✨\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar em mim no seu atendimento de ${servico}! Espero que esteja amando o resultado ✨\n\nSe puder, me ajuda deixando uma avaliação no Google? Leva um minutinho e faz muita diferença pra quem está começando 🙏\n${LINK_AVALIACAO_GOOGLE}\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
 }
 
 /** Lembrete de véspera — pra mandar de uma vez pra quem tem atendimento amanhã. */

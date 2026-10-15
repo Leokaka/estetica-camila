@@ -17,13 +17,16 @@ import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxI
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign, Repeat, AlertTriangle } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign, Repeat, AlertTriangle, Gift } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay, subDays, addDays, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados, paraMinutos, HORARIO_FUNCIONAMENTO } from '@/lib/agenda'
 import { formatCurrency } from '@/lib/format'
-import { DIAS_PARA_CONFERIR } from '@/lib/presumido'
+import { DIAS_PARA_CONFERIR, passouSemConferir } from '@/lib/presumido'
+import { gravarCliente } from '@/lib/origem'
+import { CampoOrigem } from '@/components/campo-origem'
+import { HorariosLivres } from '@/components/horarios-livres-dialog'
 import { sugerirProximaVisita, situacaoDaCliente, type ItemHistorico, type Sugestao } from '@/lib/proxima-visita'
 import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
@@ -97,6 +100,8 @@ function horaAgoraNaGrade(): string {
 
 type AcaoTipo = 'realizado' | 'pago' | 'cancelar' | 'excluir'
 
+const NOVA_CLIENTE_VAZIA = { nome: '', telefone: '', origem: '', indicadaPor: '' }
+
 // Tira de dias do formulário: 6 semanas a partir de hoje. Antes ia só até o fim do
 // mês em exibição — no dia 28 sobravam 3 dias, justo quando ela marca a manutenção
 // de cílios (21 dias) e a limpeza (35), que caem sempre no mês seguinte.
@@ -135,7 +140,7 @@ export default function AgendamentosPage() {
   const [buscaCliente, setBuscaCliente] = useState('')
   const [promo15, setPromo15] = useState(false)
   const [novaClienteAberta, setNovaClienteAberta] = useState(false)
-  const [novaCliente, setNovaCliente] = useState<{ nome: string; telefone: string }>({ nome: '', telefone: '' })
+  const [novaCliente, setNovaCliente] = useState(NOVA_CLIENTE_VAZIA)
   const [salvandoCliente, setSalvandoCliente] = useState(false)
   const [acao, setAcao] = useState<{ tipo: AcaoTipo; ag: Agendamento } | null>(null)
   const [processandoAcao, setProcessandoAcao] = useState(false)
@@ -194,7 +199,7 @@ export default function AgendamentosPage() {
     setFila([])
     setPromo15(false)
     setNovaClienteAberta(false)
-    setNovaCliente({ nome: '', telefone: '' })
+    setNovaCliente(NOVA_CLIENTE_VAZIA)
     setDialogOpen(true)
   }
 
@@ -223,7 +228,7 @@ export default function AgendamentosPage() {
     setFila([])
     setPromo15(false)
     setNovaClienteAberta(false)
-    setNovaCliente({ nome: '', telefone: '' })
+    setNovaCliente(NOVA_CLIENTE_VAZIA)
     setDialogOpen(true)
   }
 
@@ -307,6 +312,13 @@ export default function AgendamentosPage() {
   const sugestao = situacaoCliente && !situacaoCliente.proximo && fila.length === 0 && !form.servico_id
     ? sugerirProximaVisita(form.cliente_id, historico, todosServicos, servicos)
     : null
+
+  // Cliente que trouxe alguém nos últimos 60 dias: lembra a Camila na próxima vez
+  // que for marcar essa cliente — é o momento natural de agradecer (e dar o mimo,
+  // se ela decidir ter um). Sem isso a indicação acontece e ninguém reconhece.
+  const indicacoesRecentes = !editando && form.cliente_id
+    ? clientes.filter(c => c.indicada_por === form.cliente_id && differenceInDays(new Date(), new Date(c.created_at)) <= 60)
+    : []
 
   function aplicarSugestao(s: Sugestao) {
     // No "Atendi agora" data e hora já são o agora — a sugestão só traz o serviço.
@@ -411,16 +423,17 @@ export default function AgendamentosPage() {
       return
     }
     setSalvandoCliente(true)
-    const { data, error } = await supabase
-      .from('clientes')
-      .insert({ nome: novaCliente.nome.trim(), telefone: novaCliente.telefone })
-      .select()
-      .single()
+    const { data, error } = await gravarCliente(supabase, {
+      nome: novaCliente.nome.trim(),
+      telefone: novaCliente.telefone,
+      origem: novaCliente.origem || null,
+      indicada_por: novaCliente.origem === 'indicacao' && novaCliente.indicadaPor ? novaCliente.indicadaPor : null,
+    })
     setSalvandoCliente(false)
     if (error || !data) { toast.error('Erro ao cadastrar cliente'); return }
     setClientes(cs => [...cs, data].sort((a, b) => a.nome.localeCompare(b.nome)))
     setForm(f => ({ ...f, cliente_id: data.id }))
-    setNovaCliente({ nome: '', telefone: '' })
+    setNovaCliente(NOVA_CLIENTE_VAZIA)
     setNovaClienteAberta(false)
     toast.success(`${data.nome} cadastrada!`)
   }
@@ -752,6 +765,20 @@ export default function AgendamentosPage() {
                   </span>
                 </div>
                 <div className="mt-2.5 flex gap-2">
+                  {/* O card mostra quem foi atendida nos últimos dias — o melhor momento
+                      pra agradecer e pedir avaliação no Google, com a experiência fresca. */}
+                  {ag.cliente?.telefone && (
+                    <Button
+                      size="sm" variant="outline" className="shrink-0 px-2.5 text-success"
+                      title="Agradecer e pedir avaliação no WhatsApp"
+                      onClick={() => window.open(
+                        linkWhatsApp(ag.cliente!.telefone, mensagemAgradecimento(ag.cliente!.nome, ag.servico?.nome ?? 'seu procedimento')),
+                        '_blank'
+                      )}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                   <Button
                     size="sm" variant="outline" className="flex-1 text-danger"
                     onClick={() => setAcao({ tipo: 'cancelar', ag })}
@@ -779,6 +806,10 @@ export default function AgendamentosPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Agenda vazia é faturamento que não volta: em out/2026 ela ocupava ~30% do
+          tempo. O botão transforma o que está livre em texto pra status/stories. */}
+      <HorariosLivres ocupacao={historico} />
 
       <Tabs defaultValue="calendario">
         <TabsList>
@@ -865,11 +896,14 @@ export default function AgendamentosPage() {
                           <Button
                             size="sm" variant="outline"
                             className="text-success h-7 px-2"
-                            title={ag.status === 'realizado' ? 'Enviar agradecimento no WhatsApp' : 'Enviar confirmação no WhatsApp'}
+                            title={ag.status === 'realizado' || passouSemConferir(ag) ? 'Agradecer e pedir avaliação no WhatsApp' : 'Enviar confirmação no WhatsApp'}
                             onClick={() => window.open(
                               linkWhatsApp(
                                 ag.cliente.telefone,
-                                ag.status === 'realizado'
+                                // Já aconteceu (fechado ou não): a mensagem certa é o
+                                // agradecimento. Antes só "realizado" contava — e como ela
+                                // não fecha atendimento, o agradecimento nunca saía.
+                                ag.status === 'realizado' || passouSemConferir(ag)
                                   ? mensagemAgradecimento(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento')
                                   : mensagemConfirmacao(ag.cliente.nome, ag.servico?.nome ?? 'seu procedimento', new Date(ag.data_hora), Number(ag.valor_cobrado), false)
                               ), '_blank')}
@@ -1103,6 +1137,14 @@ export default function AgendamentosPage() {
                     value={novaCliente.telefone}
                     onChange={e => setNovaCliente(nc => ({ ...nc, telefone: e.target.value }))}
                   />
+                  {/* Aqui é onde cliente nova nasce de verdade (no meio do agendamento),
+                      então é aqui que a origem precisa ser perguntada. */}
+                  <CampoOrigem
+                    origem={novaCliente.origem}
+                    indicadaPor={novaCliente.indicadaPor}
+                    onChange={v => setNovaCliente(nc => ({ ...nc, ...v }))}
+                    clientes={clientes}
+                  />
                   <Button type="button" size="sm" className="w-full" disabled={salvandoCliente} onClick={salvarNovaCliente}>
                     {salvandoCliente ? 'Cadastrando...' : 'Cadastrar e selecionar'}
                   </Button>
@@ -1133,6 +1175,12 @@ export default function AgendamentosPage() {
                     Já tem horário marcado: {todosServicos.find(sv => sv.id === situacaoCliente.proximo!.servico_id)?.nome ?? 'procedimento'}{' '}
                     {format(new Date(situacaoCliente.proximo.data_hora), "EEEEEE dd/MM 'às' HH:mm", { locale: ptBR })}.
                   </span>
+                </p>
+              )}
+              {indicacoesRecentes.length > 0 && !novaClienteAberta && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-success-soft px-3 py-2 text-xs text-success">
+                  <Gift className="mt-px h-3.5 w-3.5 shrink-0" />
+                  <span>Indicou {indicacoesRecentes.map(c => c.nome.split(' ')[0]).join(', ')} — lembra de agradecer!</span>
                 </p>
               )}
               {sugestao && !novaClienteAberta && (

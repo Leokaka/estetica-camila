@@ -21,8 +21,10 @@ import { formatCurrency } from '@/lib/format'
 import { exportarCSV } from '@/lib/csv'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
 import { linkWhatsApp, mensagemGenerica } from '@/lib/whatsapp'
+import { gravarCliente, rotuloOrigem } from '@/lib/origem'
+import { CampoOrigem } from '@/components/campo-origem'
 
-const EMPTY_FORM = { nome: '', telefone: '', email: '', data_nascimento: '', observacoes: '' }
+const EMPTY_FORM = { nome: '', telefone: '', email: '', data_nascimento: '', observacoes: '', origem: '', indicada_por: '' }
 
 // Iniciais pro avatar do card — mais fácil de diferenciar de relance numa lista longa
 // do que um ícone genérico igual pra todo mundo.
@@ -82,6 +84,8 @@ export default function ClientesPage() {
       email: c.email ?? '',
       data_nascimento: c.data_nascimento ?? '',
       observacoes: c.observacoes ?? '',
+      origem: c.origem ?? '',
+      indicada_por: c.indicada_por ?? '',
     })
     setDialogOpen(true)
   }
@@ -101,17 +105,13 @@ export default function ClientesPage() {
       email: form.email || null,
       data_nascimento: form.data_nascimento || null,
       observacoes: form.observacoes || null,
+      origem: form.origem || null,
+      indicada_por: form.origem === 'indicacao' && form.indicada_por ? form.indicada_por : null,
     }
 
-    if (editando) {
-      const { error } = await supabase.from('clientes').update(payload).eq('id', editando.id)
-      if (error) toast.error('Erro ao atualizar cliente')
-      else { toast.success('Cliente atualizado!'); setDialogOpen(false); loadClientes() }
-    } else {
-      const { error } = await supabase.from('clientes').insert(payload)
-      if (error) toast.error('Erro ao cadastrar cliente')
-      else { toast.success('Cliente cadastrado!'); setDialogOpen(false); loadClientes() }
-    }
+    const { error } = await gravarCliente(supabase, payload, editando?.id)
+    if (error) toast.error(editando ? 'Erro ao atualizar cliente' : 'Erro ao cadastrar cliente')
+    else { toast.success(editando ? 'Cliente atualizado!' : 'Cliente cadastrado!'); setDialogOpen(false); loadClientes() }
     setSalvando(false)
   }
 
@@ -184,6 +184,10 @@ export default function ClientesPage() {
             const idade = c.data_nascimento
               ? differenceInYears(new Date(), new Date(c.data_nascimento + 'T00:00:00'))
               : null
+            // Quem ela trouxe: é a cliente que merece um agradecimento (e o mimo, se
+            // a Camila decidir dar) — e é o jeito de ver se indicação está funcionando.
+            const indicou = clientes.filter(x => x.indicada_por === c.id)
+            const quemIndicou = c.indicada_por ? clientes.find(x => x.id === c.indicada_por) : null
             return (
               <Card key={c.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
@@ -216,6 +220,20 @@ export default function ClientesPage() {
                   )}
                   {c.observacoes && (
                     <p className="text-xs text-brand-muted-soft italic truncate">{c.observacoes}</p>
+                  )}
+                  {(c.origem || indicou.length > 0) && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {c.origem && (
+                        <Badge variant="secondary">
+                          {quemIndicou ? `Indicada por ${quemIndicou.nome.split(' ')[0]}` : rotuloOrigem(c.origem)}
+                        </Badge>
+                      )}
+                      {indicou.length > 0 && (
+                        <Badge variant="success">
+                          Indicou {indicou.length === 1 ? indicou[0].nome.split(' ')[0] : `${indicou.length} clientes`}
+                        </Badge>
+                      )}
+                    </div>
                   )}
                   <div className="flex gap-2 pt-2">
                     <Button size="sm" variant="outline" className="flex-1" onClick={() => loadHistorico(c)}>
@@ -269,6 +287,12 @@ export default function ClientesPage() {
               <Label htmlFor="cliente-obs">Observações</Label>
               <Textarea id="cliente-obs" value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Alergias, preferências, observações..." rows={3} />
             </div>
+            <CampoOrigem
+              origem={form.origem}
+              indicadaPor={form.indicada_por}
+              onChange={v => setForm({ ...form, origem: v.origem, indicada_por: v.indicadaPor })}
+              clientes={clientes.filter(x => x.id !== editando?.id)}
+            />
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button type="submit" className="flex-1" disabled={salvando}>
