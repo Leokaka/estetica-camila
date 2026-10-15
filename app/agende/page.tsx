@@ -120,6 +120,7 @@ const GRUPOS = [
       { nome: 'Limpeza de pele', descricao: 'Cravo, oleosidade e textura — a pele já sai diferente no mesmo dia' },
       { nome: 'Peeling', descricao: 'Renova a pele e clareia manchas e marcas de acne' },
       { nome: 'Microagulhamento', descricao: 'Estimula colágeno e trata textura, marcas de acne e estrias' },
+      { nome: 'Hidrolipoclasia não aspirativa', descricao: 'Tratamento para gordura localizada, feito em sessões e sem cirurgia' },
       { nome: 'Drenagem linfática', descricao: 'Desincha, ativa a circulação e tira o peso das pernas' },
       { nome: 'Massagem modeladora', descricao: 'Modela o corpo com placas de contração abdominal' },
       { nome: 'Massagem relaxante', descricao: 'Uma hora só sua, pra soltar a tensão acumulada' },
