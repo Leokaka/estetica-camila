@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,19 +17,20 @@ import { Combobox, ComboboxContent, ComboboxInput, ComboboxInputGroup, ComboboxI
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay, subDays } from 'date-fns'
+import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign, Repeat, AlertTriangle } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay, subDays, addDays, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados, paraMinutos, HORARIO_FUNCIONAMENTO } from '@/lib/agenda'
 import { formatCurrency } from '@/lib/format'
 import { DIAS_PARA_CONFERIR } from '@/lib/presumido'
+import { sugerirProximaVisita, situacaoDaCliente, type ItemHistorico, type Sugestao } from '@/lib/proxima-visita'
 import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
   FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
 } from '@/lib/status'
 import { TAXA_CARTAO_DEBITO, taxaCartaoCredito, type CanalCartao } from '@/lib/taxas-cartao'
-import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento } from '@/lib/whatsapp'
+import { linkWhatsApp, mensagemConfirmacao, mensagemAgradecimento, mensagemConfirmacaoVarios } from '@/lib/whatsapp'
 
 // 'local' saiu da UI em 01/08/2026 — Camila fechou o quartinho e o acordo com a Karine,
 // hoje só atende no espaço próprio dela. Campo mantido fixo em 'quartinho' só pra bater
@@ -96,11 +97,24 @@ function horaAgoraNaGrade(): string {
 
 type AcaoTipo = 'realizado' | 'pago' | 'cancelar' | 'excluir'
 
+// Tira de dias do formulário: 6 semanas a partir de hoje. Antes ia só até o fim do
+// mês em exibição — no dia 28 sobravam 3 dias, justo quando ela marca a manutenção
+// de cílios (21 dias) e a limpeza (35), que caem sempre no mês seguinte.
+const DIAS_NA_TIRA = 42
+
+/** Agendamento não cancelado de qualquer mês — histórico da cliente e ocupação da agenda. */
+type ItemOcupacao = ItemHistorico & { servico?: { duracao_minutos?: number } | null }
+
 export default function AgendamentosPage() {
   const supabase = createClient()
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
+  // Inclui inativos: o último serviço da cliente pode ter saído de linha e ainda
+  // precisa ser reconhecido pra sugerir a continuação.
+  const [todosServicos, setTodosServicos] = useState<Servico[]>([])
+  const [historico, setHistorico] = useState<ItemOcupacao[]>([])
+  const tiraDiasRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Agendamento | null>(null)
@@ -135,7 +149,7 @@ export default function AgendamentosPage() {
     const inicio = startOfMonth(mesAtual).toISOString()
     const fim = endOfMonth(mesAtual).toISOString()
 
-    const [{ data: ags }, { data: cls }, { data: svs }, { data: pend }] = await Promise.all([
+    const [{ data: ags }, { data: cls }, { data: svs }, { data: pend }, { data: hist }, { data: todosSvs }] = await Promise.all([
       supabase.from('agendamentos')
         .select('*, cliente:clientes(id, nome, telefone), servico:servicos(id, nome, preco, duracao_minutos)')
         .gte('data_hora', inicio).lte('data_hora', fim)
@@ -151,9 +165,19 @@ export default function AgendamentosPage() {
         .lt('data_hora', new Date().toISOString())
         .in('status', ['agendado', 'confirmado'])
         .order('data_hora'),
+      // Todos os meses, só o essencial. Duas funções: (1) checar conflito de horário
+      // em qualquer data — antes só o mês aberto na tela era carregado, então marcar
+      // dia 05/11 olhando outubro mostrava como livre um horário já ocupado; e
+      // (2) saber o último atendimento da cliente pra sugerir o próximo.
+      supabase.from('agendamentos')
+        .select('id, cliente_id, servico_id, data_hora, status, servico:servicos(duracao_minutos)')
+        .neq('status', 'cancelado'),
+      supabase.from('servicos').select('*'),
     ])
 
     setAgendamentos((ags as any) ?? [])
+    setHistorico((hist as unknown as ItemOcupacao[]) ?? [])
+    setTodosServicos(todosSvs ?? [])
     setClientes(cls ?? [])
     setServicos(svs ?? [])
     setPendencias((pend as unknown as Agendamento[]) ?? [])
@@ -248,8 +272,7 @@ export default function AgendamentosPage() {
     const duracao = servicos.find(s => s.id === servicoId)?.duracao_minutos ?? 60
     const dataObj = new Date(data + 'T00:00:00')
     const ocupados = agendamentosParaOcupados([
-      ...agendamentos.filter((ag: any) =>
-        ag.status !== 'cancelado' &&
+      ...historico.filter(ag =>
         ag.id !== editando?.id &&
         isSameDay(new Date(ag.data_hora), dataObj)
       ),
@@ -261,22 +284,51 @@ export default function AgendamentosPage() {
   const servicoEscolhido = servicos.find(s => s.id === form.servico_id)
   const horariosDoServico = horariosParaServicoData(form.servico_id, form.data)
 
-  // Tira rápida de dias do mês carregado, pra sugerir data ao marcar ou reagendar
-  // sem precisar abrir o calendário nativo. Só cobre o mês em exibição (mesAtual).
+  // Tira rápida de dias, pra escolher a data sem abrir o calendário nativo. Começa
+  // hoje (ou no mês em exibição, se ela navegou pra frente) e cobre DIAS_NA_TIRA.
   const diasParaEscolher = (() => {
     const hoje = startOfDay(new Date())
     const inicioMes = startOfMonth(mesAtual)
     const inicio = isBefore(inicioMes, hoje) ? hoje : inicioMes
-    const fim = endOfMonth(mesAtual)
-    if (isBefore(fim, inicio)) return []
-    return eachDayOfInterval({ start: inicio, end: fim })
+    return eachDayOfInterval({ start: inicio, end: addDays(inicio, DIAS_NA_TIRA - 1) })
   })()
+
+  // Data escolhida (à mão ou pela sugestão) pode estar semanas à frente, fora da
+  // parte visível da tira — centraliza o dia marcado pra ela ver o que foi escolhido.
+  useEffect(() => {
+    const tira = tiraDiasRef.current
+    const marcado = tira?.querySelector<HTMLElement>('[data-selecionado="true"]')
+    if (tira && marcado) tira.scrollLeft = marcado.offsetLeft - tira.clientWidth / 2 + marcado.clientWidth / 2
+  }, [form.data, dialogOpen])
+
+  // Só em agendamento novo e antes de ela escolher o serviço: depois disso a
+  // sugestão já não ajuda e só ocuparia espaço no formulário.
+  const situacaoCliente = !editando && form.cliente_id ? situacaoDaCliente(form.cliente_id, historico) : null
+  const sugestao = situacaoCliente && !situacaoCliente.proximo && fila.length === 0 && !form.servico_id
+    ? sugerirProximaVisita(form.cliente_id, historico, todosServicos, servicos)
+    : null
+
+  function aplicarSugestao(s: Sugestao) {
+    // No "Atendi agora" data e hora já são o agora — a sugestão só traz o serviço.
+    if (modoAgora) {
+      setForm(f => ({ ...f, servico_id: s.servico.id, valor_cobrado: String(s.servico.preco) }))
+      return
+    }
+    const data = s.data ?? form.data
+    const livres = horariosParaServicoData(s.servico.id, data)
+    // Horário de sempre ocupado nesse dia: o mais próximo depois dele, senão o
+    // primeiro livre. Avisa, pra ela não confirmar com a cliente o horário antigo.
+    const hora = livres.includes(s.hora)
+      ? s.hora
+      : livres.find(h => paraMinutos(h) >= paraMinutos(s.hora)) ?? livres[0] ?? ''
+    if (hora && hora !== s.hora) toast.info(`${s.hora} já está ocupado nesse dia — sugeri ${hora}.`)
+    setForm(f => ({ ...f, servico_id: s.servico.id, data, hora, valor_cobrado: String(s.servico.preco) }))
+  }
 
   function horariosLivresNoDia(dia: Date) {
     if (!servicoEscolhido) return diaFunciona(dia)
     const ocupados = agendamentosParaOcupados([
-      ...agendamentos.filter((ag: any) =>
-        ag.status !== 'cancelado' &&
+      ...historico.filter(ag =>
         ag.id !== editando?.id &&
         isSameDay(new Date(ag.data_hora), dia)
       ),
@@ -465,7 +517,25 @@ export default function AgendamentosPage() {
             }
           }
         }
-        toast.success(payloads.length > 1 ? `${payloads.length} procedimentos agendados!` : 'Agendamento criado!')
+        const mensagem = payloads.length > 1 ? `${payloads.length} procedimentos agendados!` : 'Agendamento criado!'
+        // Ela marca com o WhatsApp da cliente aberto do lado — o passo seguinte é
+        // sempre responder confirmando. O botão leva a mensagem pronta, com data,
+        // valor e endereço, em vez de ela digitar tudo de novo.
+        const cliente = clientes.find(c => c.id === form.cliente_id)
+        const tudoFuturo = linhas.every(l => l.status === 'agendado' || l.status === 'confirmado')
+        if (cliente?.telefone && tudoFuturo) {
+          const texto = mensagemConfirmacaoVarios(cliente.nome, linhas.map(l => ({
+            servico: servicos.find(sv => sv.id === l.servico_id)?.nome ?? 'procedimento',
+            dataHora: new Date(`${l.data}T${l.hora}:00`),
+            valor: Number(l.valor_cobrado),
+          })))
+          toast.success(mensagem, {
+            duration: 15000,
+            action: { label: 'Confirmar no WhatsApp', onClick: () => window.open(linkWhatsApp(cliente.telefone, texto), '_blank') },
+          })
+        } else {
+          toast.success(mensagem)
+        }
         setDialogOpen(false)
         setFila([])
         loadData()
@@ -1056,6 +1126,34 @@ export default function AgendamentosPage() {
                   </ComboboxContent>
                 </Combobox>
               )}
+              {situacaoCliente?.proximo && !novaClienteAberta && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Já tem horário marcado: {todosServicos.find(sv => sv.id === situacaoCliente.proximo!.servico_id)?.nome ?? 'procedimento'}{' '}
+                    {format(new Date(situacaoCliente.proximo.data_hora), "EEEEEE dd/MM 'às' HH:mm", { locale: ptBR })}.
+                  </span>
+                </p>
+              )}
+              {sugestao && !novaClienteAberta && (
+                <button
+                  type="button"
+                  onClick={() => aplicarSugestao(sugestao)}
+                  className="w-full rounded-lg border border-brand-gold bg-brand-surface-warm p-3 text-left transition-colors hover:border-primary"
+                >
+                  <span className="block text-xs text-brand-muted">
+                    Última vez: {sugestao.ultimoServicoNome} · {format(sugestao.ultimaVisita, 'dd/MM')} (há {differenceInDays(new Date(), sugestao.ultimaVisita)} dias)
+                  </span>
+                  <span className="mt-1 flex items-start gap-1.5 text-sm font-medium text-brand-dark">
+                    <Repeat className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>
+                      Marcar {sugestao.servico.nome}
+                      {!modoAgora && sugestao.data && ` · ${format(new Date(sugestao.data + 'T00:00:00'), 'EEEEEE dd/MM', { locale: ptBR })}`}
+                      {!modoAgora && ` às ${sugestao.hora}`}
+                    </span>
+                  </span>
+                </button>
+              )}
             </div>
 
             {!editando && fila.length > 0 && (
@@ -1112,7 +1210,7 @@ export default function AgendamentosPage() {
                 />
               </div>
               {diasParaEscolher.length > 0 && (
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <div ref={tiraDiasRef} className="relative flex gap-1.5 overflow-x-auto pb-1">
                   {diasParaEscolher.map(dia => {
                     const valorDia = format(dia, 'yyyy-MM-dd')
                     const selecionado = form.data === valorDia
@@ -1122,6 +1220,7 @@ export default function AgendamentosPage() {
                       <button
                         key={valorDia}
                         type="button"
+                        data-selecionado={selecionado}
                         disabled={fechado}
                         onClick={() => selecionarData(valorDia)}
                         className={`flex shrink-0 flex-col items-center gap-0.5 rounded-lg border px-2.5 py-1.5 text-center transition-colors

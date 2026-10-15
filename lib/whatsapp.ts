@@ -9,6 +9,17 @@ export function mensagemConfirmacao(nome: string, servico: string, dataHora: Dat
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeu agendamento está confirmado:\n✨ ${servico}\n📅 ${data} às ${hora}\n💰 R$ ${valor}${promo ? ` (com ${PROMO_LABEL})` : ''}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
 }
 
+/**
+ * Confirmação de vários procedimentos marcados juntos (a fila do formulário). Uma
+ * mensagem só, com tudo listado: mandar uma por procedimento parece robô.
+ */
+export function mensagemConfirmacaoVarios(nome: string, itens: { servico: string; dataHora: Date; valor: number }[]) {
+  if (itens.length === 1) return mensagemConfirmacao(nome, itens[0].servico, itens[0].dataHora, itens[0].valor, false)
+  const linhas = itens.map(i => `✨ ${i.servico} — ${format(i.dataHora, 'dd/MM')} às ${format(i.dataHora, 'HH:mm')}`).join('\n')
+  const total = itens.reduce((s, i) => s + i.valor, 0)
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeus agendamentos estão confirmados:\n${linhas}\n💰 Total R$ ${total}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
+}
+
 /** Mensagem pós-atendimento, pra quando o agendamento já foi marcado como realizado. */
 export function mensagemAgradecimento(nome: string, servico: string) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar no meu trabalho hoje! Espero que tenha amado o resultado do seu ${servico} ✨\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
