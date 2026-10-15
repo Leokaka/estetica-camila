@@ -21,6 +21,14 @@ import { formatCurrency } from '@/lib/format'
 
 const CATEGORIAS = ['Facial', 'Plasma', 'Cílios', 'Sobrancelha', 'Micropigmentação', 'Corporal', 'Geral']
 
+// Ritmo usual de cada categoria — os mesmos valores que o supabase-retorno.sql usou
+// como rede de segurança. Serviço novo já nasce com isso preenchido: a Hidrolipo,
+// criada por ela em 06/10, ficou com o campo vazio e nunca apareceu no "Na hora de
+// voltar". Campo que depende de ela lembrar de preencher fica vazio.
+const RETORNO_POR_CATEGORIA: Record<string, number> = {
+  'Cílios': 21, 'Sobrancelha': 25, 'Corporal': 12, 'Facial': 35, 'Plasma': 45, 'Micropigmentação': 300,
+}
+
 const EMPTY_FORM = {
   nome: '', descricao: '', preco: '', custo: '',
   duracao_minutos: '60', categoria: 'Geral', ativo: true,
@@ -62,6 +70,16 @@ export default function ServicosPage() {
   }
 
   useEffect(() => { loadServicos() }, [])
+
+  // Só em serviço novo, e só se o campo ainda está vazio ou com o padrão da categoria
+  // anterior — nunca passa por cima de um número que ela digitou.
+  function trocarCategoria(f: typeof EMPTY_FORM, categoria: string) {
+    const padraoAnterior = RETORNO_POR_CATEGORIA[f.categoria]
+    const intocado = f.dias_retorno === '' || Number(f.dias_retorno) === padraoAnterior
+    if (editando || !intocado) return { ...f, categoria }
+    const padrao = RETORNO_POR_CATEGORIA[categoria]
+    return { ...f, categoria, dias_retorno: padrao ? String(padrao) : '' }
+  }
 
   function abrirNovo() {
     setEditando(null)
@@ -252,7 +270,7 @@ export default function ServicosPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="servico-categoria">Categoria</Label>
-              <Select value={form.categoria} onValueChange={v => setForm({ ...form, categoria: v ?? form.categoria })}>
+              <Select value={form.categoria} onValueChange={v => setForm(f => trocarCategoria(f, v ?? f.categoria))}>
                 <SelectTrigger id="servico-categoria"><SelectValue>{form.categoria}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}

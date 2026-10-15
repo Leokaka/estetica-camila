@@ -18,11 +18,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { Plus, Edit, Trash2, CheckCircle, XCircle, MessageCircle, UserPlus, CalendarClock, Search, CircleDollarSign } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, startOfDay, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import type { Agendamento, Cliente, Servico } from '@/types'
 import { diaFunciona, horariosDisponiveis, agendamentosParaOcupados, paraMinutos, HORARIO_FUNCIONAMENTO } from '@/lib/agenda'
 import { formatCurrency } from '@/lib/format'
+import { DIAS_PARA_CONFERIR } from '@/lib/presumido'
 import {
   STATUS_LABELS, STATUS_BADGE_VARIANT,
   FORMA_PAGAMENTO_LABELS, STATUS_PAGAMENTO_LABELS, STATUS_PAGAMENTO_BADGE_VARIANT,
@@ -108,7 +109,6 @@ export default function AgendamentosPage() {
   const [modoAgora, setModoAgora] = useState(false)
   /** Atendimentos cuja data já passou e que continuam como "agendado"/"confirmado". */
   const [pendencias, setPendencias] = useState<Agendamento[]>([])
-  const [verTodasPendencias, setVerTodasPendencias] = useState(false)
   // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
   // "Agendar" pra serem todos criados juntos — permite marcar vários procedimentos
   // pra mesma cliente numa única confirmação, em vez de reabrir o dialog pra cada um.
@@ -606,6 +606,10 @@ export default function AgendamentosPage() {
   }
 
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mesAtual), end: endOfMonth(mesAtual) })
+  // Corte de "essa semana" do card de pendências (lib/presumido.ts explica o porquê).
+  const limiteConferir = subDays(new Date(), DIAS_PARA_CONFERIR)
+  const pendenciasRecentes = pendencias.filter(ag => new Date(ag.data_hora) >= limiteConferir)
+  const pendenciasAntigas = pendencias.filter(ag => new Date(ag.data_hora) < limiteConferir)
   const buscaAtiva = buscaCliente.trim().toLowerCase()
   const agendamentosDoDiaTodos = diaSelecionado
     ? agendamentos
@@ -647,30 +651,30 @@ export default function AgendamentosPage() {
         </div>
       </div>
 
-      {/* O passivo em primeiro lugar, antes de qualquer agenda. Um atendimento que
-          aconteceu mas nunca foi fechado não existe no financeiro: em 25/09 eram 10
-          atendimentos e R$ 1.107 invisíveis, com o painel dizendo "R$ 0 recebido". */}
-      {pendencias.length > 0 && (
+      {/* Desde 15/10 isto não é mais "feche cada um": o que passou já conta como
+          atendido e pago (lib/presumido.ts), porque ela não voltava pra fechar — a
+          lista chegou a 64 itens e R$ 6.456, crescendo toda semana sem um toque.
+          Agora o card só pergunta o que ela ainda lembra: quem faltou nos últimos
+          dias. O mais antigo fica presumido em silêncio, com uma linha de total. */}
+      {pendenciasRecentes.length > 0 && (
         <Card className="border-brand-terra bg-brand-surface-warm">
           <CardHeader className="pb-3">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
               <CalendarClock className="h-4 w-4 text-brand-terra" />
-              Fechar atendimentos que já passaram
-              <Badge variant="secondary">{pendencias.length}</Badge>
+              Alguém faltou essa semana?
             </CardTitle>
             <p className="text-sm text-brand-text-soft">
-              {formatCurrency(pendencias.reduce((s, ag) => s + Number(ag.valor_cobrado), 0))} que
-              ainda não entraram no Financeiro. Um toque em cada e o mês fecha certo.
+              Já contei estes como atendidos e pagos. Só toca em quem não veio.
             </p>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pendencias.slice(0, verTodasPendencias ? undefined : 8).map(ag => (
+            {[...pendenciasRecentes].reverse().map(ag => (
               <div key={ag.id} className="rounded-lg border border-brand-border bg-brand-card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-brand-dark">{ag.cliente?.nome}</p>
                     <p className="truncate text-xs text-brand-muted">
-                      {ag.servico?.nome} · {format(new Date(ag.data_hora), "dd/MM 'às' HH:mm")}
+                      {ag.servico?.nome} · {format(new Date(ag.data_hora), "EEEEEE dd/MM, HH:mm", { locale: ptBR })}
                     </p>
                   </div>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-brand-dark">
@@ -679,30 +683,28 @@ export default function AgendamentosPage() {
                 </div>
                 <div className="mt-2.5 flex gap-2">
                   <Button
-                    size="sm" className="flex-1"
-                    onClick={() => setAcao({ tipo: 'realizado', ag })}
-                  >
-                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Atendi
-                  </Button>
-                  <Button
                     size="sm" variant="outline" className="flex-1 text-danger"
                     onClick={() => setAcao({ tipo: 'cancelar', ag })}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1.5" /> Não veio
                   </Button>
+                  {/* Opcional: grava de vez como realizado e lança no financeiro. Fica
+                      em segundo plano porque o número já está certo sem ele. */}
+                  <Button
+                    size="sm" variant="ghost" className="flex-1 text-brand-text-soft"
+                    onClick={() => setAcao({ tipo: 'realizado', ag })}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Veio
+                  </Button>
                 </div>
               </div>
             ))}
-            {/* Teto de 8 porque a lista chegou a 40 itens: sem corte, a agenda ficava
-                a 4.000px de rolagem da primeira tela e a página inteira virava um
-                paredão — o contrário de facilitar. O total continua no cabeçalho. */}
-            {pendencias.length > 8 && (
-              <Button
-                variant="ghost" size="sm" className="w-full text-brand-text-soft"
-                onClick={() => setVerTodasPendencias(v => !v)}
-              >
-                {verTodasPendencias ? 'Mostrar menos' : `Ver as outras ${pendencias.length - 8}`}
-              </Button>
+            {pendenciasAntigas.length > 0 && (
+              <p className="pt-1 text-xs text-brand-muted">
+                Mais {pendenciasAntigas.length} de antes disso
+                ({formatCurrency(pendenciasAntigas.reduce((s, ag) => s + Number(ag.valor_cobrado), 0))}) já
+                contam como atendidos.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -1415,13 +1417,18 @@ export default function AgendamentosPage() {
             <AlertDialogTitle>
               {acao?.tipo === 'realizado' && `Marcar "${acao.ag.cliente?.nome}" como realizado?`}
               {acao?.tipo === 'pago' && `Recebeu o pagamento de "${acao.ag.cliente?.nome}"?`}
-              {acao?.tipo === 'cancelar' && 'Cancelar agendamento?'}
+              {/* Horário que já passou: cancelar aqui é registrar falta, não liberar agenda. */}
+              {acao?.tipo === 'cancelar' && (new Date(acao.ag.data_hora) < new Date()
+                ? `${acao.ag.cliente?.nome ?? 'A cliente'} não veio?`
+                : 'Cancelar agendamento?')}
               {acao?.tipo === 'excluir' && 'Excluir agendamento?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {acao?.tipo === 'realizado' && `Isso lança ${formatCurrency(Number(acao.ag.valor_cobrado))} automaticamente no Financeiro.`}
               {acao?.tipo === 'pago' && 'Lança no Financeiro o que ainda faltava desse atendimento.'}
-              {acao?.tipo === 'cancelar' && 'O horário volta a ficar disponível pra outra cliente.'}
+              {acao?.tipo === 'cancelar' && (new Date(acao.ag.data_hora) < new Date()
+                ? `Os ${formatCurrency(Number(acao.ag.valor_cobrado))} saem das Entradas do mês.`
+                : 'O horário volta a ficar disponível pra outra cliente.')}
               {acao?.tipo === 'excluir' && 'Essa ação remove o registro e não pode ser desfeita.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

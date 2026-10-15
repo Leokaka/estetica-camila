@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { passouSemConferir } from '@/lib/presumido'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,7 +42,7 @@ function margemClasse(margem: number) {
 export default function FinanceiroPage() {
   const supabase = createClient()
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
-  const [agendamentosPeriodo, setAgendamentosPeriodo] = useState<Pick<Agendamento, 'valor_cobrado' | 'data_hora' | 'status_pagamento'>[]>([])
+  const [agendamentosPeriodo, setAgendamentosPeriodo] = useState<Pick<Agendamento, 'id' | 'status' | 'valor_cobrado' | 'data_hora' | 'status_pagamento'>[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -72,7 +73,7 @@ export default function FinanceiroPage() {
       // abaixo, pra ela ver o dinheiro que já era dela mesmo sem ter dado o OK no sistema.
       supabase
         .from('agendamentos')
-        .select('valor_cobrado, data_hora, status_pagamento')
+        .select('id, status, valor_cobrado, data_hora, status_pagamento')
         .gte('data_hora', `${inicio}T00:00:00`)
         .lte('data_hora', `${fim}T23:59:59`)
         .neq('status', 'cancelado'),
@@ -123,7 +124,14 @@ export default function FinanceiroPage() {
 
   const entradas = lancamentos.filter(l => l.tipo === 'entrada')
   const saidas = lancamentos.filter(l => l.tipo === 'saida')
-  const totalEntradas = entradas.reduce((s, l) => s + Number(l.valor), 0)
+  const agora = new Date()
+  // Atendimento que passou e ninguém fechou conta como recebido (lib/presumido.ts).
+  // Fica de fora o que já tem entrada lançada, pra não contar o mesmo atendimento duas vezes.
+  const jaLancados = new Set(entradas.map(l => l.agendamento_id).filter(Boolean))
+  const presumidos = agendamentosPeriodo.filter(a => passouSemConferir(a, agora) && !jaLancados.has(a.id))
+  const totalPresumido = presumidos.reduce((s, a) => s + Number(a.valor_cobrado), 0)
+  const totalLancado = entradas.reduce((s, l) => s + Number(l.valor), 0)
+  const totalEntradas = totalLancado + totalPresumido
   const totalSaidas = saidas.reduce((s, l) => s + Number(l.valor), 0)
   const lucro = totalEntradas - totalSaidas
   const margemLucro = totalEntradas > 0 ? (lucro / totalEntradas * 100) : 0
@@ -134,9 +142,10 @@ export default function FinanceiroPage() {
   // Só agendamentos cuja data já passou e que ainda não foram confirmados como pagos —
   // isso é especificamente o que ela "esqueceu de dar OK", sem incluir agendamentos
   // futuros normais que ainda não teriam sido pagos mesmo.
-  const agora = new Date()
-  const aguardandoConfirmacao = agendamentosPeriodo
-    .filter(a => new Date(a.data_hora) <= agora && a.status_pagamento !== 'pago')
+  // Fiado de verdade: ela marcou como realizado mas não pago. Diferente do presumido,
+  // aqui alguém disse explicitamente que o dinheiro não entrou.
+  const emAberto = agendamentosPeriodo
+    .filter(a => a.status === 'realizado' && a.status_pagamento !== 'pago')
     .reduce((s, a) => s + Number(a.valor_cobrado), 0)
 
   const lancamentosFiltrados = filtroTipo === 'todos' ? lancamentos
@@ -253,7 +262,11 @@ export default function FinanceiroPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-success">{formatCurrency(totalEntradas)}</p>
-            <p className="text-xs text-brand-muted-soft mt-1">{entradas.length} registros</p>
+            <p className="text-xs text-brand-muted-soft mt-1">
+              {totalPresumido > 0
+                ? `${formatCurrency(totalLancado)} lançados + ${formatCurrency(totalPresumido)} sem conferir`
+                : `${entradas.length} registros`}
+            </p>
           </CardContent>
         </Card>
 
@@ -317,16 +330,22 @@ export default function FinanceiroPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-brand-text-soft">Aguardando Confirmação</CardTitle>
-            <AlertTriangle className={`h-5 w-5 ${aguardandoConfirmacao > 0 ? 'text-warning' : 'text-brand-muted-soft'}`} />
+            <CardTitle className="text-sm font-medium text-brand-text-soft">Contado sem Conferir</CardTitle>
+            <AlertTriangle className={`h-5 w-5 ${totalPresumido > 0 ? 'text-warning' : 'text-brand-muted-soft'}`} />
           </CardHeader>
           <CardContent>
-            <p className={`text-2xl font-bold ${aguardandoConfirmacao > 0 ? 'text-warning' : 'text-brand-muted-soft'}`}>
-              {formatCurrency(aguardandoConfirmacao)}
+            <p className={`text-2xl font-bold ${totalPresumido > 0 ? 'text-warning' : 'text-brand-muted-soft'}`}>
+              {formatCurrency(totalPresumido)}
             </p>
             <p className="text-xs text-brand-muted-soft mt-1">
-              Já passou a data e ainda não foi marcado como pago — confere em Agendamentos
+              {presumidos.length === 1
+                ? '1 atendimento já passou e entrou nas Entradas como pago.'
+                : `${presumidos.length} atendimentos já passaram e entraram nas Entradas como pagos.`}
+              {' '}Se alguém faltou, marca &ldquo;Não veio&rdquo; em Agendamentos.
             </p>
+            {emAberto > 0 && (
+              <p className="text-xs text-danger mt-1">{formatCurrency(emAberto)} marcado como não pago</p>
+            )}
           </CardContent>
         </Card>
       </div>

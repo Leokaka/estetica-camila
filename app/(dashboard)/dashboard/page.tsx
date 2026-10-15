@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/format'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
 import { linkWhatsApp, mensagemConfirmacao, mensagemLembrete, mensagemRetorno, mensagemRetomada } from '@/lib/whatsapp'
 import { toast } from 'sonner'
+import { passouSemConferir, aindaVaiAcontecer } from '@/lib/presumido'
 
 function mensagemCobranca(nome: string, servico: string, valor: number) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando só pra lembrar do pagamento do ${servico} (${formatCurrency(valor)}) combinado. Qualquer coisa me chama por aqui 😊`
@@ -57,6 +58,7 @@ export default function DashboardPage() {
     recebido_mes: 0,
     recebido_mes_anterior: 0,
     esperado_mes: 0,
+    nao_conferido_mes: 0,
     total_clientes: 0,
     novos_clientes_mes: 0,
     agendamentos_mes: 0,
@@ -91,10 +93,13 @@ export default function DashboardPage() {
       { data: lancamentosChart },
       { data: atrasados },
       { data: amanha },
+      { data: passadosSemFechar },
     ] = await Promise.all([
-      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').neq('status', 'cancelado')
+      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago, data_hora').neq('status', 'cancelado')
         .gte('data_hora', inicioMes.toISOString()).lte('data_hora', fimMes.toISOString()),
-      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago').eq('status', 'realizado')
+      // Não só 'realizado': o mês anterior também tem os presumidos (lib/presumido.ts),
+      // senão a comparação "vs mês anterior" mede disciplina de fechar, não receita.
+      supabase.from('agendamentos').select('valor_cobrado, status, status_pagamento, valor_pago, data_hora').neq('status', 'cancelado')
         .gte('data_hora', inicioMesAnterior.toISOString()).lte('data_hora', fimMesAnterior.toISOString()),
       supabase.from('clientes').select('id', { count: 'exact', head: true }),
       supabase.from('clientes').select('id', { count: 'exact', head: true })
@@ -108,7 +113,7 @@ export default function DashboardPage() {
       // separada: assim, se a coluna dias_retorno ainda não existir no banco, quem
       // falha é só ela — o resto do painel continua de pé.
       supabase.from('clientes').select('*, agendamentos(data_hora, status, servico_id)').order('nome'),
-      supabase.from('lancamentos').select('valor, data, tipo')
+      supabase.from('lancamentos').select('valor, data, tipo, agendamento_id')
         .gte('data', format(startOfMonth(subMonths(hoje, 5)), 'yyyy-MM-dd'))
         .lte('data', format(fimMes, 'yyyy-MM-dd')),
       supabase.from('agendamentos').select('*, cliente:clientes(nome, telefone), servico:servicos(nome)')
@@ -121,13 +126,22 @@ export default function DashboardPage() {
         .lte('data_hora', endOfDay(addDays(hoje, 1)).toISOString())
         .in('status', ['agendado', 'confirmado'])
         .order('data_hora'),
+      // Atendimentos dos últimos 6 meses que passaram sem ser fechados — entram no
+      // gráfico junto com os lançamentos, senão as barras desde agosto ficam zeradas.
+      supabase.from('agendamentos').select('id, valor_cobrado, data_hora, status')
+        .in('status', ['agendado', 'confirmado'])
+        .gte('data_hora', startOfMonth(subMonths(hoje, 5)).toISOString())
+        .lt('data_hora', hoje.toISOString()),
     ])
 
-    // Recebido = dinheiro que já entrou de verdade (pago inteiro, ou a parte já paga de um parcial).
-    // Esperado = o que ainda falta entrar: agendamentos futuros (agendado/confirmado) + o saldo
-    // de atendimentos já realizados mas ainda não totalmente pagos.
+    // Recebido = o que entrou (pago inteiro, ou a parte paga de um parcial) + o que
+    // passou sem ninguém fechar, presumido pago (lib/presumido.ts).
+    // A receber = só o que ainda vai acontecer + saldo de realizado que ela marcou
+    // como não pago. Antes, atendimento de agosto nunca fechado seguia "a receber"
+    // pra sempre, misturando dívida real com esquecimento.
     function recebidoDe(ags: any[]) {
       return ags?.reduce((s, a) => {
+        if (passouSemConferir(a, hoje)) return s + Number(a.valor_cobrado)
         if (a.status !== 'realizado') return s
         if (a.status_pagamento === 'pago') return s + Number(a.valor_cobrado)
         if (a.status_pagamento === 'parcial') return s + Number(a.valor_pago ?? 0)
@@ -136,7 +150,7 @@ export default function DashboardPage() {
     }
     function esperadoDe(ags: any[]) {
       return ags?.reduce((s, a) => {
-        if (a.status === 'agendado' || a.status === 'confirmado') return s + Number(a.valor_cobrado)
+        if (aindaVaiAcontecer(a, hoje)) return s + Number(a.valor_cobrado)
         if (a.status === 'realizado' && a.status_pagamento !== 'pago') {
           return s + (Number(a.valor_cobrado) - (a.status_pagamento === 'parcial' ? Number(a.valor_pago ?? 0) : 0))
         }
@@ -147,18 +161,22 @@ export default function DashboardPage() {
     const recebido = recebidoDe(agendamentosMes ?? [])
     const recebidoAnterior = recebidoDe(agendamentosMesAnterior ?? [])
     const esperado = esperadoDe(agendamentosMes ?? [])
+    const naoConferido = (agendamentosMes ?? [])
+      .filter(a => passouSemConferir(a, hoje))
+      .reduce((s, a) => s + Number(a.valor_cobrado), 0)
     const totalDespesas = despesas?.reduce((s, l) => s + Number(l.valor), 0) ?? 0
-    const realizadosMes = (agendamentosMes ?? []).filter((a: any) => a.status === 'realizado')
-    const valorRealizadosMes = realizadosMes.reduce((s, a) => s + Number(a.valor_cobrado), 0)
+    const atendidosMes = (agendamentosMes ?? []).filter(a => a.status === 'realizado' || passouSemConferir(a, hoje))
+    const valorAtendidosMes = atendidosMes.reduce((s, a) => s + Number(a.valor_cobrado), 0)
 
     setStats({
       recebido_mes: recebido,
       recebido_mes_anterior: recebidoAnterior,
       esperado_mes: esperado,
+      nao_conferido_mes: naoConferido,
       total_clientes: totalClientesCount ?? 0,
       novos_clientes_mes: novosClientesCount ?? 0,
-      agendamentos_mes: realizadosMes.length,
-      ticket_medio: realizadosMes.length > 0 ? valorRealizadosMes / realizadosMes.length : 0,
+      agendamentos_mes: atendidosMes.length,
+      ticket_medio: atendidosMes.length > 0 ? valorAtendidosMes / atendidosMes.length : 0,
       despesas_mes: totalDespesas,
       lucro_mes: recebido - totalDespesas,
     })
@@ -230,7 +248,15 @@ export default function DashboardPage() {
     naHoraDeVoltar.sort((a, b) => (a.dias - a.janela) - (b.dias - b.janela))
     setRetornos(naHoraDeVoltar)
 
-    // Gráfico dos últimos 6 meses
+    // Gráfico dos últimos 6 meses: lançamentos + presumidos. Agendamento que já tem
+    // entrada lançada fica de fora dos presumidos — o diagnóstico de 15/10 achou mais
+    // entradas automáticas (17) que atendimentos realizados (11), ou seja, há
+    // lançamento ligado a agendamento que não está mais "realizado". Somar os dois
+    // contaria o mesmo atendimento duas vezes.
+    const comLancamento = new Set(
+      (lancamentosChart ?? []).filter(l => l.tipo === 'entrada' && l.agendamento_id).map(l => l.agendamento_id)
+    )
+    const presumidosChart = (passadosSemFechar ?? []).filter(a => !comLancamento.has(a.id))
     const mesesChart: { mes: string; faturamento: number }[] = []
     for (let i = 5; i >= 0; i--) {
       const mesRef = subMonths(hoje, i)
@@ -239,10 +265,16 @@ export default function DashboardPage() {
       const entradas = (lancamentosChart ?? []).filter(
         (l: any) => l.tipo === 'entrada' && l.data >= inicio && l.data <= fim
       )
-      const agMes = entradas.reduce((s: number, l: any) => s + Number(l.valor), 0)
+      const lancado = entradas.reduce((s: number, l: any) => s + Number(l.valor), 0)
+      const presumido = presumidosChart
+        .filter(a => {
+          const dia = format(new Date(a.data_hora), 'yyyy-MM-dd')
+          return dia >= inicio && dia <= fim
+        })
+        .reduce((s, a) => s + Number(a.valor_cobrado), 0)
       mesesChart.push({
         mes: format(mesRef, 'MMM', { locale: ptBR }),
-        faturamento: agMes,
+        faturamento: lancado + presumido,
       })
     }
     setChartData(mesesChart)
@@ -475,7 +507,14 @@ export default function DashboardPage() {
                 {variacaoRecebido}% vs mês anterior
               </p>
             ) : (
-              <p className="text-xs mt-1 text-muted-foreground">Dinheiro já confirmado</p>
+              <p className="text-xs mt-1 text-muted-foreground">Atendimentos do mês que já passaram</p>
+            )}
+            {/* Mostra quanto do número é presumido: se ela (ou o Léo) estranhar o
+                valor, sabe de onde ele vem e onde corrigir. */}
+            {stats.nao_conferido_mes > 0 && (
+              <Link href="/agendamentos" className="mt-1 block text-xs text-brand-muted hover:underline">
+                {formatCurrency(stats.nao_conferido_mes)} contados sem conferir
+              </Link>
             )}
           </CardContent>
         </Card>
@@ -487,7 +526,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-brand-dark">{formatCurrency(stats.esperado_mes)}</p>
-            <p className="text-xs mt-1 text-muted-foreground">Agendado + saldo pendente</p>
+            <p className="text-xs mt-1 text-muted-foreground">O que ainda vai acontecer + pagamento em aberto</p>
           </CardContent>
         </Card>
 
@@ -534,6 +573,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Entradas dos Últimos 6 Meses</CardTitle>
+            <p className="text-xs text-brand-muted">Inclui os atendimentos que passaram sem ser fechados.</p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
