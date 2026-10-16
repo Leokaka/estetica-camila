@@ -20,11 +20,12 @@ export function mensagemConfirmacaoVarios(nome: string, itens: { servico: string
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nSeus agendamentos estão confirmados:\n${linhas}\n💰 Total R$ ${total}\n📍 ${ENDERECO}\n\nQualquer coisa é só me chamar por aqui. Até lá! 😊`
 }
 
-// Onde a cliente avalia no Google. O ideal é o link curto oficial ("g.page/r/…/review",
-// em business.google.com → Pedir avaliações), que já abre a caixa de escrever. Enquanto
-// ele não for colado aqui, vale a busca no Maps: funciona, mas a cliente ainda precisa
-// achar o botão de avaliar.
-export const LINK_AVALIACAO_GOOGLE = 'https://www.google.com/maps/search/Camila+Garcia+Est%C3%A9tica+Rua+S%C3%A3o+Teodoro+833'
+// Abre direto a caixa de escrever avaliação do Perfil do Google dela (com a cliente
+// logada no Google, que é o normal no celular). O placeid foi tirado do próprio
+// perfil no Maps em 15/10/2026 — bate com o identificador da ficha
+// 0x94ce67002a730835:0x7b6b2e67dc289f3b. Antes era uma busca no Maps, que obrigava
+// a cliente a achar o botão de avaliar: cada passo a mais é avaliação que não sai.
+export const LINK_AVALIACAO_GOOGLE = 'https://search.google.com/local/writereview?placeid=ChIJNQhzKgBnzpQRO58o3Gcua3s'
 
 /**
  * Mensagem pós-atendimento, com pedido de avaliação no Google.

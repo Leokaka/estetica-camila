@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { ENDERECO } from '@/lib/whatsapp'
+import { ENDERECO, LINK_AVALIACAO_GOOGLE } from '@/lib/whatsapp'
 import { Rastreio } from './rastreio'
 
 // Página pública (link da bio do Instagram + campo "site" do Perfil do Google).
@@ -304,8 +304,10 @@ export default async function AgendePage({
           >
             Ver meu Instagram
           </a>
+          {/* Link direto pra caixa de avaliação, não pra busca no Maps. O evento segue
+              como "maps" porque a tabela eventos só aceita esses tipos (CHECK). */}
           <a
-            href={MAPS}
+            href={LINK_AVALIACAO_GOOGLE}
             target="_blank"
             rel="noopener noreferrer"
             data-evento="maps"
