@@ -126,6 +126,9 @@ export default function AgendamentosPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   // Só muda o texto da tela: o formulário é o mesmo, o que muda é o que já vem preenchido.
   const [modoAgora, setModoAgora] = useState(false)
+  // Atendimento já salvo ao qual ela está acrescentando mais um procedimento (ver
+  // salvarEAdicionarOutro). Só muda textos e esconde a sugestão de "marcar de novo".
+  const [complementoDe, setComplementoDe] = useState<Agendamento | null>(null)
   /** Atendimentos cuja data já passou e que continuam como "agendado"/"confirmado". */
   const [pendencias, setPendencias] = useState<Agendamento[]>([])
   // Procedimentos já configurados nessa sessão do dialog, aguardando o clique em
@@ -192,6 +195,7 @@ export default function AgendamentosPage() {
   function abrirNovo(data?: Date) {
     setEditando(null)
     setModoAgora(false)
+    setComplementoDe(null)
     // Data já vem preenchida com hoje: sem ela o seletor de horário abre travado
     // ("escolhe o serviço e a data primeiro") e obriga um toque a mais em todo
     // agendamento. Hoje é o caso mais comum; trocar é um toque, digitar é dois.
@@ -215,6 +219,7 @@ export default function AgendamentosPage() {
   function abrirAtendimentoAgora() {
     setEditando(null)
     setModoAgora(true)
+    setComplementoDe(null)
     setForm({
       ...EMPTY_FORM,
       data: format(new Date(), 'yyyy-MM-dd'),
@@ -235,6 +240,7 @@ export default function AgendamentosPage() {
   function abrirEditar(ag: Agendamento) {
     setEditando(ag)
     setModoAgora(false)
+    setComplementoDe(null)
     setFila([])
     const dt = new Date(ag.data_hora)
     setForm({
@@ -308,7 +314,7 @@ export default function AgendamentosPage() {
 
   // Só em agendamento novo e antes de ela escolher o serviço: depois disso a
   // sugestão já não ajuda e só ocuparia espaço no formulário.
-  const situacaoCliente = !editando && form.cliente_id ? situacaoDaCliente(form.cliente_id, historico) : null
+  const situacaoCliente = !editando && !complementoDe && form.cliente_id ? situacaoDaCliente(form.cliente_id, historico) : null
   const sugestao = situacaoCliente && !situacaoCliente.proximo && fila.length === 0 && !form.servico_id
     ? sugerirProximaVisita(form.cliente_id, historico, todosServicos, servicos)
     : null
@@ -481,23 +487,77 @@ export default function AgendamentosPage() {
     setFila(fl => fl.filter((_, i) => i !== indice))
   }
 
+  /** Grava as mudanças do agendamento em edição. Devolve se deu certo. */
+  async function salvarEdicao(): Promise<boolean> {
+    if (!editando) return false
+    const payload = paraPayload(form)
+    const { error } = await supabase.from('agendamentos').update(payload).eq('id', editando.id)
+    if (error) { toast.error('Erro ao atualizar agendamento'); return false }
+    // Só lança no financeiro na transição pra "realizado" — evita duplicar entrada
+    // toda vez que um agendamento já realizado é apenas editado de novo.
+    if (payload.status === 'realizado' && editando.status !== 'realizado') {
+      const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
+      const valorLiquidoCartao = form.forma_pagamento === 'cartao_credito' && form.valor_liquido_cartao
+        ? Number(form.valor_liquido_cartao) : null
+      if (valor > 0) await registrarEntradaFinanceira(editando.id, { ...payload, valor_liquido_cartao: valorLiquidoCartao, canal_cartao: form.canal_cartao }, valor)
+    }
+    return true
+  }
+
+  /**
+   * Acrescenta procedimento a um atendimento que já existe.
+   *
+   * Caso real (15/10/2026): cliente marcada pra manutenção de cílios fez também
+   * limpeza de pele na hora. A Camila abriu o agendamento pra acrescentar a limpeza
+   * e não tinha como — o "Adicionar outro procedimento" só existia em agendamento
+   * novo; na edição dava pra TROCAR o procedimento, nunca somar. Aqui salva o que
+   * está na tela e reabre o mesmo formulário já como agendamento novo: mesma
+   * cliente, mesmo dia, começando quando o primeiro termina, mesmo status.
+   */
+  async function salvarEAdicionarOutro() {
+    if (!editando) return
+    setSalvando(true)
+    const ok = await salvarEdicao()
+    setSalvando(false)
+    if (!ok) return
+
+    const duracao = servicos.find(sv => sv.id === form.servico_id)?.duracao_minutos ?? 60
+    const { grade, fechamento } = HORARIO_FUNCIONAMENTO
+    const fim = Math.ceil((paraMinutos(form.hora) + duracao) / grade) * grade
+    const horaSeguinte = fim + grade <= paraMinutos(fechamento)
+      ? `${String(Math.floor(fim / 60)).padStart(2, '0')}:${String(fim % 60).padStart(2, '0')}`
+      : ''
+    const base = { ...editando, ...paraPayload(form) } as Agendamento
+
+    // Recarrega antes de abrir: o atendimento recém-salvo precisa contar como
+    // ocupado, senão o horário do segundo procedimento poderia bater nele.
+    await loadData()
+    setEditando(null)
+    setFila([])
+    setComplementoDe(base)
+    setForm({
+      ...EMPTY_FORM,
+      cliente_id: form.cliente_id,
+      data: form.data,
+      hora: horaSeguinte,
+      status: form.status,
+      // Pagamento só é copiado se foi "pago" inteiro: parcial ou pendente do
+      // primeiro não diz nada sobre o segundo.
+      status_pagamento: form.status_pagamento === 'pago' ? 'pago' : 'pendente',
+      forma_pagamento: form.status_pagamento === 'pago' ? form.forma_pagamento : '',
+    })
+    // O botão fica no pé do formulário: sem voltar ao topo ela cairia no meio de
+    // um formulário que mudou, sem ver o título "Mais um procedimento".
+    requestAnimationFrame(() => document.querySelector('[role="dialog"]')?.scrollTo({ top: 0 }))
+    toast.success('Salvo! Agora escolhe o outro procedimento.')
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
     setSalvando(true)
 
     if (editando) {
-      const payload = paraPayload(form)
-      const { error } = await supabase.from('agendamentos').update(payload).eq('id', editando.id)
-      if (error) toast.error('Erro ao atualizar agendamento')
-      else {
-        // Só lança no financeiro na transição pra "realizado" — evita duplicar entrada
-        // toda vez que um agendamento já realizado é apenas editado de novo.
-        if (payload.status === 'realizado' && editando.status !== 'realizado') {
-          const valor = valorRecebidoAoRealizar(payload.status_pagamento, payload.valor_cobrado, payload.valor_pago)
-          const valorLiquidoCartao = form.forma_pagamento === 'cartao_credito' && form.valor_liquido_cartao
-            ? Number(form.valor_liquido_cartao) : null
-          if (valor > 0) await registrarEntradaFinanceira(editando.id, { ...payload, valor_liquido_cartao: valorLiquidoCartao, canal_cartao: form.canal_cartao }, valor)
-        }
+      if (await salvarEdicao()) {
         toast.success('Agendamento atualizado!')
         setDialogOpen(false)
         loadData()
@@ -1109,8 +1169,14 @@ export default function AgendamentosPage() {
         <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editando ? 'Editar Agendamento' : modoAgora ? 'Atendimento de agora' : 'Novo Agendamento'}
+              {editando ? 'Editar Agendamento' : modoAgora ? 'Atendimento de agora' : complementoDe ? 'Mais um procedimento' : 'Novo Agendamento'}
             </DialogTitle>
+            {complementoDe && (
+              <p className="text-sm text-brand-text-soft">
+                Mesmo atendimento de {clientes.find(c => c.id === complementoDe.cliente_id)?.nome.split(' ')[0] ?? 'a cliente'}
+                {' '}em {format(new Date(complementoDe.data_hora), 'dd/MM')}, depois de {servicos.find(sv => sv.id === complementoDe.servico_id)?.nome ?? 'o primeiro procedimento'}.
+              </p>
+            )}
           </DialogHeader>
           <form onSubmit={salvar} className="space-y-4">
             <div className="space-y-2">
@@ -1520,6 +1586,17 @@ export default function AgendamentosPage() {
                 onClick={adicionarProcedimento}
               >
                 <Plus className="h-4 w-4 mr-2" /> Adicionar outro procedimento pra essa cliente
+              </Button>
+            )}
+            {editando && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={salvando || !form.servico_id || !form.data || !form.hora}
+                onClick={salvarEAdicionarOutro}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Salvar e adicionar outro procedimento
               </Button>
             )}
             <div className="flex gap-2 pt-2">
