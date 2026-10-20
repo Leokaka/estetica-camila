@@ -99,3 +99,16 @@ Acesse [http://localhost:3000](http://localhost:3000)
 
 **Quero atualizar o sistema?**
 → Faça as alterações no código, rode `git add . && git commit -m "..." && git push`. O Vercel faz o novo deploy automaticamente.
+
+## Produção hoje (atualizado 19/10/2026)
+
+| Parte | Valor |
+|---|---|
+| Supabase | Projeto `estetica-camila-sp` (ref `qolfxvipzcddseytkowo`), região **sa-east-1** (São Paulo), organização Pro |
+| Vercel | Projeto `estetica-camila`, funções em **gru1** (São Paulo) via `vercel.json` |
+| Site | https://estetica-camila.vercel.app |
+
+- **Migrado em 19/10/2026** de us-east-1 (ref `kvymsffrcwnmieljicox`) pra ficar perto da Camila: as telas buscam dados direto do navegador, e cada consulta caía de ~0,3–0,5 s pra ~0,1 s. O projeto antigo ficou como backup por 1 semana, sem uso.
+- **Cadastro público desligado** (Authentication → Sign In / Providers → "Allow new users to sign up" OFF). O sistema não tem tela de cadastro, e as policies liberam tudo pra qualquer usuário autenticado: cadastro aberto deixaria qualquer um criar conta e ler os dados. Usuário novo = criar em Authentication → Users → Add user.
+- `SUPABASE_SERVICE_ROLE_KEY` (usada só em `app/api/evento`, que grava as visitas do /agende) precisa ser a do projeto novo: Supabase → Project Settings → API Keys. Sem ela, a página funciona normal e só a medição para.
+- Bancos com `eventos.id` por identity: o projeto novo começa os IDs novos em 1001.
