@@ -275,6 +275,15 @@ export default function ClientesPage() {
               <Label htmlFor="cliente-telefone">Telefone / WhatsApp *</Label>
               <Input id="cliente-telefone" value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} placeholder="(11) 99999-9999" required />
             </div>
+            {/* Logo depois do telefone, e não no pé do formulário: lá embaixo ficava
+                escondido atrás da rolagem e ninguém respondia. É o que alimenta o
+                "Faturamento pelo Como conheceu?" do painel de Marketing. */}
+            <CampoOrigem
+              origem={form.origem}
+              indicadaPor={form.indicada_por}
+              onChange={v => setForm({ ...form, origem: v.origem, indicada_por: v.indicadaPor })}
+              clientes={clientes.filter(x => x.id !== editando?.id)}
+            />
             <div className="space-y-2">
               <Label htmlFor="cliente-email">Email</Label>
               <Input id="cliente-email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
@@ -287,12 +296,6 @@ export default function ClientesPage() {
               <Label htmlFor="cliente-obs">Observações</Label>
               <Textarea id="cliente-obs" value={form.observacoes} onChange={e => setForm({ ...form, observacoes: e.target.value })} placeholder="Alergias, preferências, observações..." rows={3} />
             </div>
-            <CampoOrigem
-              origem={form.origem}
-              indicadaPor={form.indicada_por}
-              onChange={v => setForm({ ...form, origem: v.origem, indicada_por: v.indicadaPor })}
-              clientes={clientes.filter(x => x.id !== editando?.id)}
-            />
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
               <Button type="submit" className="flex-1" disabled={salvando}>

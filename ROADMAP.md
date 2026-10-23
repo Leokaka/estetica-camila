@@ -94,3 +94,11 @@ em `lib/agenda.ts`, só falta expor sem autenticação) — Léo pediu explicita
 ## 7. Bug conhecido (pendente)
 - Select de Cliente/Serviço no formulário de "Novo Agendamento" mostra o ID (uuid) no botão
   fechado em vez do nome — funciona certo depois de escolher, só o texto do trigger está errado
+
+## 8. Painel de Marketing e negócio (feito em 23/10/2026)
+- ✅ `/marketing` refeito: resumo em frases, 6 cartões com comparação e projeção do mês, curva
+  acumulada (mês atual × anterior × projeção), funil clique → cliente → faturamento, semana a
+  semana com média de 4 semanas, mês a mês desde maio, o que mais sai (com margem estimada),
+  novas × que voltaram, "na hora de voltar", dia da semana e origens. Cálculos em
+  `app/(dashboard)/marketing/_painel/calculos.ts`; regra de retorno compartilhada em `lib/retorno.ts`.
+- Pendente: "Faturamento pelo Como conheceu?" só enche quando as clientes tiverem a origem preenchida.

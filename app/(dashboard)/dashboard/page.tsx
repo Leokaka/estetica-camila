@@ -19,6 +19,7 @@ import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
 import { linkWhatsApp, mensagemConfirmacao, mensagemLembrete, mensagemRetorno, mensagemRetomada } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 import { passouSemConferir, aindaVaiAcontecer } from '@/lib/presumido'
+import { clientesNaHoraDeVoltar, janelasPorServico, type ClienteParaRetorno, type Retorno } from '@/lib/retorno'
 
 function mensagemCobranca(nome: string, servico: string, valor: number) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando só pra lembrar do pagamento do ${servico} (${formatCurrency(valor)}) combinado. Qualquer coisa me chama por aqui 😊`
@@ -28,28 +29,6 @@ function mensagemAniversario(nome: string) {
   return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nPassando pra desejar um feliz aniversário! 🎉 Espero que seu dia seja incrível. Um beijo!`
 }
 
-/** Uma cliente que já passou da janela de retorno do próprio procedimento. */
-type Retorno = {
-  id: string
-  nome: string
-  telefone: string | null
-  servico: string
-  /** Dias desde o último atendimento. */
-  dias: number
-  /** Em quantos dias esse procedimento costuma pedir repetição. */
-  janela: number
-  /** Passou de duas janelas: já não dá pra falar em "manter o resultado". */
-  atrasada: boolean
-}
-
-// Depois de chamar a cliente, ela some do card por esse tempo. Sem isso a lista
-// mostra os mesmos nomes todo dia e a Camila para de olhar pra ela.
-const CARENCIA_CONTATO_DIAS = 14
-// Passou de 4 janelas, a chance de resposta é baixa e a lista vira cemitério.
-const LIMITE_JANELAS = 4
-// Usado quando o procedimento ainda não tem janela cadastrada — é o valor que o
-// card usava pra tudo antes de existir dias_retorno.
-const JANELA_PADRAO = 60
 // Período do placar "chamou X, Y marcaram" do card de retorno.
 const JANELA_PLACAR_DIAS = 60
 
@@ -203,52 +182,8 @@ export default function DashboardPage() {
     const listaServicos = servicosComJanela.error
       ? (await supabase.from('servicos').select('id, nome')).data
       : servicosComJanela.data
-    const janelaPorServico = new Map<string, { nome: string; dias: number }>(
-      (listaServicos ?? []).map((s: any) => [
-        s.id,
-        { nome: s.nome, dias: Number(s.dias_retorno) > 0 ? Number(s.dias_retorno) : JANELA_PADRAO },
-      ])
-    )
-
-    const naHoraDeVoltar: Retorno[] = []
-    for (const c of (todosClientes ?? []) as any[]) {
-      const agendamentos = (c.agendamentos ?? []).filter((a: any) => a.status !== 'cancelado')
-      if (agendamentos.length === 0) continue
-
-      // Quem já tem horário marcado não é cliente sumida — é cliente que volta
-      // semana que vem. Chamar essa pessoa de volta é o tipo de mensagem que
-      // queima a confiança no sistema.
-      if (agendamentos.some((a: any) => new Date(a.data_hora) > hoje)) continue
-
-      const ultimo = [...agendamentos].sort((a: any, b: any) =>
-        new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime()
-      )[0]
-
-      const servico = janelaPorServico.get(ultimo.servico_id)
-      const janela = servico?.dias ?? JANELA_PADRAO
-      const dias = differenceInDays(hoje, new Date(ultimo.data_hora))
-      if (dias < janela) continue
-      if (dias > janela * LIMITE_JANELAS) continue
-
-      if (
-        c.contato_retorno_em &&
-        differenceInDays(hoje, new Date(c.contato_retorno_em)) < CARENCIA_CONTATO_DIAS
-      ) continue
-
-      naHoraDeVoltar.push({
-        id: c.id,
-        nome: c.nome,
-        telefone: c.telefone ?? null,
-        servico: servico?.nome ?? 'procedimento',
-        dias,
-        janela,
-        atrasada: dias >= janela * 2,
-      })
-    }
-
-    // Quem entrou na janela há menos tempo primeiro: é quem ainda está no hábito
-    // e tem a maior chance de remarcar.
-    naHoraDeVoltar.sort((a, b) => (a.dias - a.janela) - (b.dias - b.janela))
+    const janelaPorServico = janelasPorServico((listaServicos ?? []) as { id: string; nome: string; dias_retorno?: number | null }[])
+    const naHoraDeVoltar = clientesNaHoraDeVoltar((todosClientes ?? []) as ClienteParaRetorno[], janelaPorServico, hoje)
     setRetornos(naHoraDeVoltar)
 
     // Placar do card: de quem foi chamada nos últimos 60 dias, quantas marcaram
@@ -305,6 +240,13 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboard()
   }, [])
+
+  // O painel de Marketing linka pra cá (/dashboard#na-hora-de-voltar). O card só
+  // existe depois que os dados chegam, então o salto pro âncora é feito à mão.
+  useEffect(() => {
+    if (loading || window.location.hash !== '#na-hora-de-voltar') return
+    document.getElementById('na-hora-de-voltar')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [loading])
 
   async function confirmarAgendamento(id: string) {
     const { error } = await supabase.from('agendamentos').update({ status: 'confirmado' }).eq('id', id)
@@ -648,7 +590,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card id="na-hora-de-voltar" className="scroll-mt-4">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-brand-terra" />
