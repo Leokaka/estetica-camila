@@ -36,7 +36,7 @@ export const LINK_AVALIACAO_GOOGLE = 'https://search.google.com/local/writerevie
  * atendimento, sim, sem depender de ninguém lembrar.
  */
 export function mensagemAgradecimento(nome: string, servico: string) {
-  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar em mim no seu atendimento de ${servico}! Espero que esteja amando o resultado ✨\n\nSe puder, me ajuda deixando uma avaliação no Google? Leva um minutinho e faz muita diferença pra quem está começando 🙏\n${LINK_AVALIACAO_GOOGLE}\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
+  return `Oi, ${nome.split(' ')[0]}! Aqui é a Camila 💛\n\nMuito obrigada por confiar em mim no seu atendimento de ${servico}! Espero que esteja amando o resultado ✨\n\nSe puder, me ajuda deixando uma avaliação no Google? Leva um minutinho e ajuda outras clientes a me encontrarem 🙏\n${LINK_AVALIACAO_GOOGLE}\n\nQualquer dúvida ou cuidado depois do procedimento, é só me chamar por aqui. Até a próxima! 😊`
 }
 
 /** Lembrete de véspera — pra mandar de uma vez pra quem tem atendimento amanhã. */
