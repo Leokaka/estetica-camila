@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,13 +14,13 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, Download, MessageCircle } from 'lucide-react'
+import { Plus, Search, Phone, Mail, Calendar, Edit, Trash2, History, Download, MessageCircle, Star } from 'lucide-react'
 import { format, differenceInYears, differenceInDays } from 'date-fns'
 import type { Cliente, Agendamento } from '@/types'
 import { formatCurrency } from '@/lib/format'
 import { exportarCSV } from '@/lib/csv'
 import { STATUS_LABELS, STATUS_BADGE_VARIANT } from '@/lib/status'
-import { linkWhatsApp, mensagemGenerica } from '@/lib/whatsapp'
+import { linkWhatsApp, mensagemGenerica, mensagemAgradecimento } from '@/lib/whatsapp'
 import { gravarCliente, rotuloOrigem } from '@/lib/origem'
 import { CampoOrigem } from '@/components/campo-origem'
 
@@ -38,6 +38,7 @@ function iniciais(nome: string) {
 export default function ClientesPage() {
   const supabase = createClient()
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [ultimoAtendimento, setUltimoAtendimento] = useState<Map<string, { servico: string; data: string }>>(new Map())
   const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -52,7 +53,22 @@ export default function ClientesPage() {
 
   async function loadClientes() {
     setLoading(true)
-    const { data } = await supabase.from('clientes').select('*').order('nome')
+    const [{ data }, { data: passados }] = await Promise.all([
+      supabase.from('clientes').select('*').order('nome'),
+      supabase
+        .from('agendamentos')
+        .select('cliente_id, data_hora, servico:servicos(nome)')
+        .neq('status', 'cancelado')
+        .lte('data_hora', new Date().toISOString())
+        .order('data_hora', { ascending: false }),
+    ])
+    // Último atendimento de cada cliente — vem ordenado do mais novo, então o
+    // primeiro que aparece é o que vale.
+    const ultimos = new Map<string, { servico: string; data: string }>()
+    for (const a of (passados as any[]) ?? []) {
+      if (!ultimos.has(a.cliente_id)) ultimos.set(a.cliente_id, { servico: a.servico?.nome ?? 'seu procedimento', data: a.data_hora })
+    }
+    setUltimoAtendimento(ultimos)
     setClientes(data ?? [])
     setLoading(false)
   }
@@ -235,6 +251,26 @@ export default function ClientesPage() {
                       )}
                     </div>
                   )}
+                  {/* Pedir avaliação mora aqui, com texto, porque é no cartão da cliente que
+                      a Camila procura. Antes só existia como ícone na agenda e ela não achava.
+                      Link direto (não window.open depois de await) pro celular não bloquear. */}
+                  {ultimoAtendimento.has(c.id) && (() => {
+                    const ult = ultimoAtendimento.get(c.id)!
+                    return (
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-xs text-brand-muted">
+                          Último atendimento: {ult.servico} · {format(new Date(ult.data), 'dd/MM')}
+                        </p>
+                        <a
+                          href={linkWhatsApp(c.telefone, mensagemAgradecimento(c.nome, ult.servico))}
+                          target="_blank" rel="noopener noreferrer"
+                          className={buttonVariants({ size: 'sm', variant: 'outline', className: 'w-full text-success' })}
+                        >
+                          <Star className="h-3.5 w-3.5 mr-1.5" /> Pedir avaliação no Google
+                        </a>
+                      </div>
+                    )
+                  })()}
                   <div className="flex gap-2 pt-2">
                     <Button size="sm" variant="outline" className="flex-1" onClick={() => loadHistorico(c)}>
                       <History className="h-3.5 w-3.5 mr-1" /> Histórico
